@@ -1,0 +1,33 @@
+plugins {
+    id 'antlr'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+// Here for the new immutable collection methods
+sourceCompatibility = 9
+targetCompatibility = 9
+
+dependencies {
+    antlr 'org.antlr:antlr4:4.10.+'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
+}
+
+application {
+    mainClass = 'lang.qkm.App'
+}
+
+run {
+    standardInput = System.in
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+generateGrammarSource {
+    arguments += ['-no-listener', '-visitor']
+}
