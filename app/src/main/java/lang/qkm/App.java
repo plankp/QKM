@@ -117,6 +117,7 @@ public class App extends QKMBaseVisitor<Object> {
     public Type visitTypeName(TypeNameContext ctx) {
         final String name = ctx.n.getText();
         switch (name) {
+        case "bool":    return BoolType.INSTANCE;
         default:
             final EnumType t = enums.get(name);
             if (t != null)
@@ -167,6 +168,37 @@ public class App extends QKMBaseVisitor<Object> {
                 return t;
         }
         throw new RuntimeException("Unknown binding " + name);
+    }
+
+    @Override
+    public Type visitExprTrue(ExprTrueContext ctx) {
+        return BoolType.INSTANCE;
+    }
+
+    @Override
+    public Type visitExprFalse(ExprFalseContext ctx) {
+        return BoolType.INSTANCE;
+    }
+
+    @Override
+    public Type visitExprChar(ExprCharContext ctx) {
+        // make sure the literal is well formed
+        final String lit = ctx.getText();
+        final StrEscape decoder = new StrEscape(lit, 1, lit.length() - 1);
+        decoder.next();
+
+        return new IntType(32);
+    }
+
+    @Override
+    public Type visitExprText(ExprTextContext ctx) {
+        // make sure the literal is well formed
+        final String lit = ctx.getText();
+        final StrEscape decoder = new StrEscape(lit, 1, lit.length() - 1);
+        while (decoder.hasNext())
+            decoder.next();
+
+        return StringType.INSTANCE;
     }
 
     @Override
@@ -246,6 +278,36 @@ public class App extends QKMBaseVisitor<Object> {
     @Override
     public Map.Entry<Match, Type> visitPatIgnore(PatIgnoreContext ctx) {
         return Map.entry(new MatchComplete(), this.freshType());
+    }
+
+    @Override
+    public Map.Entry<Match, Type> visitPatTrue(PatTrueContext ctx) {
+        return Map.entry(new MatchAtom(true), BoolType.INSTANCE);
+    }
+
+    @Override
+    public Map.Entry<Match, Type> visitPatFalse(PatFalseContext ctx) {
+        return Map.entry(new MatchAtom(false), BoolType.INSTANCE);
+    }
+
+    @Override
+    public Map.Entry<Match, Type> visitPatChar(PatCharContext ctx) {
+        final String lit = ctx.getText();
+        final StrEscape decoder = new StrEscape(lit, 1, lit.length() - 1);
+        final int cp = decoder.next();
+
+        return Map.entry(new MatchAtom(BigInteger.valueOf(cp)), new IntType(32));
+    }
+
+    @Override
+    public Map.Entry<Match, Type> visitPatText(PatTextContext ctx) {
+        final String lit = ctx.getText();
+        final StrEscape decoder = new StrEscape(lit, 1, lit.length() - 1);
+        final StringBuilder sb = new StringBuilder();
+        while (decoder.hasNext())
+            sb.appendCodePoint(decoder.next());
+
+        return Map.entry(new MatchAtom(sb.toString()), StringType.INSTANCE);
     }
 
     @Override

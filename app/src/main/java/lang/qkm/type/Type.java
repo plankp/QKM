@@ -32,7 +32,7 @@ public interface Type {
         a = a.getCompress(m);
         b = b.getCompress(m);
         if (a == b)
-            // handles things like enums
+            // handles things like enums and bools
             return a;
 
         if (b instanceof VarType) {
@@ -93,6 +93,9 @@ public interface Type {
                     ? null // just in case size > INTMAX
                     : new TupleType(Collections.unmodifiableList(elements));
         }
+
+        if (a instanceof IntType && a.equals(b))
+            return a;
 
         return null;
     }

@@ -17,5 +17,19 @@ public final class EnumType implements Type {
         return "enum " + this.name;
     }
 
-    // Identity equals and hash code for now
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.name, this.cases);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this)
+            return true;
+        if (!(obj instanceof EnumType))
+            return false;
+
+        final EnumType ty = (EnumType) obj;
+        return this.name.equals(ty.name) && this.cases.equals(ty.cases);
+    }
 }
