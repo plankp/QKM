@@ -5,6 +5,10 @@ import java.util.*;
 
 public interface Type {
 
+    public default Type replace(Map<VarType, Type> m) {
+        return this;
+    }
+
     public default Type getCompress(Map<BigInteger, Type> m) {
         return this;
     }

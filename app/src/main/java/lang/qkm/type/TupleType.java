@@ -19,6 +19,23 @@ public final class TupleType implements ClosedType {
     }
 
     @Override
+    public Type replace(Map<VarType, Type> m) {
+        boolean changed = false;
+        final ArrayList<Type> list = new ArrayList<>(this.elements);
+        final ListIterator<Type> it = list.listIterator();
+        while (it.hasNext()) {
+            final Type t = it.next();
+            final Type r = t.replace(m);
+            changed |= t == r;
+            it.set(r);
+        }
+
+        return !changed
+                ? this
+                : new TupleType(Collections.unmodifiableList(list));
+    }
+
+    @Override
     public Optional<Boolean> sameSize(int sz) {
         return Optional.of(sz == 1);
     }

@@ -20,6 +20,15 @@ public final class FuncType implements Type {
     }
 
     @Override
+    public Type replace(Map<VarType, Type> m) {
+        final Type a = this.arg.replace(m);
+        final Type r = this.ret.replace(m);
+        return a == this.arg && r == this.ret
+                ? this
+                : new FuncType(a, r);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(this.arg, this.ret);
     }

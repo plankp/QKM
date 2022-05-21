@@ -17,6 +17,11 @@ public final class VarType implements Type {
     }
 
     @Override
+    public Type replace(Map<VarType, Type> m) {
+        return m.getOrDefault(this, this);
+    }
+
+    @Override
     public Type getCompress(Map<BigInteger, Type> m) {
         Type t = m.get(this.key);
         if (t == null)

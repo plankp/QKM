@@ -18,6 +18,22 @@ public final class EnumType implements ClosedType {
     }
 
     @Override
+    public Type replace(Map<VarType, Type> m) {
+        final HashMap<String, Type> k = new HashMap<>(this.cases);
+        boolean changed = false;
+        for (final Map.Entry<String, Type> pair : k.entrySet()) {
+            final Type t = pair.getValue();
+            final Type r = t.replace(m);
+            changed |= t == r;
+            pair.setValue(r);
+        }
+
+        return !changed
+                ? this
+                : new EnumType(this.name, Collections.unmodifiableMap(k));
+    }
+
+    @Override
     public Optional<Boolean> sameSize(int sz) {
         final int refsz = this.cases.size();
         if (0 <= refsz && refsz < Integer.MAX_VALUE)
