@@ -19,6 +19,14 @@ public final class TupleType implements ClosedType {
     }
 
     @Override
+    public boolean contains(VarType vt) {
+        for (final Type t : this.elements)
+            if (t.contains(vt))
+                return true;
+        return false;
+    }
+
+    @Override
     public Type replace(Map<VarType, Type> m) {
         boolean changed = false;
         final ArrayList<Type> list = new ArrayList<>(this.elements);

@@ -5,6 +5,10 @@ import java.util.*;
 
 public interface Type {
 
+    public default boolean contains(VarType tv) {
+        return false;
+    }
+
     public default Type replace(Map<VarType, Type> m) {
         return this;
     }
@@ -59,7 +63,9 @@ public interface Type {
                     a = b;
                     b = t;
                 }
-            }
+            } else if (b.contains((VarType) a))
+                // disallow recursive types
+                return null;
 
             m.put(((VarType) a).key, b);
             return b;

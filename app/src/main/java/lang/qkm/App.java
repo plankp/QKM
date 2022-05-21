@@ -156,7 +156,7 @@ public class App extends QKMBaseVisitor<Object> {
 
         final VarType res = this.freshType();
         if (Type.unify(f, new FuncType(arg, res), this.bounds) == null)
-            throw new RuntimeException("Illegal types for (" + f + ") " + arg);
+            throw new RuntimeException("Illegal types for (" + f.getCompress(this.bounds) + ") " + arg.getCompress(this.bounds));
 
         return res.getCompress(this.bounds);
     }
@@ -201,6 +201,27 @@ public class App extends QKMBaseVisitor<Object> {
             decoder.next();
 
         return StringType.INSTANCE;
+    }
+
+    @Override
+    public Type visitExprLambda(ExprLambdaContext ctx) {
+        final Map<String, Type> depth = new HashMap<>();
+        this.scope.addFirst(depth);
+
+        try {
+            final Map.Entry<Match, Type> pair = (Map.Entry<Match, Type>) this.visit(ctx.f.p);
+            final Match args = pair.getKey();
+            final Type type = pair.getValue();
+
+            if (!Match.covers(List.of(SList.of(args)), SList.of(new MatchComplete()), SList.of(type)))
+                throw new RuntimeException("Illegal anonymous function with refutable pattern");
+
+            final Type body = (Type) this.visit(ctx.f.e);
+            return new FuncType(type.getCompress(this.bounds),
+                                body.getCompress(this.bounds));
+        } finally {
+            this.scope.removeFirst();
+        }
     }
 
     @Override

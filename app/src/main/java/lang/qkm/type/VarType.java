@@ -17,6 +17,11 @@ public final class VarType implements Type {
     }
 
     @Override
+    public boolean contains(VarType vt) {
+        return this.equals(vt);
+    }
+
+    @Override
     public Type replace(Map<VarType, Type> m) {
         return m.getOrDefault(this, this);
     }

@@ -13,6 +13,7 @@ COLON   : ':';
 TRUE    : 'true';
 FALSE   : 'false';
 UBAR    : '_';
+SLASH   : '\\';
 ARROW   : '=>';
 ENUM    : 'enum';
 MATCH   : 'match';
@@ -69,6 +70,7 @@ expr
     | FALSE                                 # ExprFalse
     | CHAR                                  # ExprChar
     | TEXT                                  # ExprText
+    | '\\' f=matchCase                      # ExprLambda
     | '(' ((es+=expr ',')* es+=expr)? ')'   # ExprGroup
     | 'match' i=expr 'with' (
         (r+=matchCase)
@@ -87,6 +89,6 @@ pattern
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
     | id=IDENT arg=pattern                      # PatDecons
-    | VAL n=IDENT                               # PatBind
+    | 'val' n=IDENT                             # PatBind
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
     ;
