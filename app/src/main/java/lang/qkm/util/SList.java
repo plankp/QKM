@@ -36,6 +36,11 @@ public abstract class SList<E> {
             final SList<E> xs = this.next;
             return xs == null ? new Nil<>() : xs;
         }
+
+        @Override
+        public String toString() {
+            return "Cons(" + this.data + ")";
+        }
     }
 
     public static final class Nil<E> extends SList<E> {
@@ -53,6 +58,11 @@ public abstract class SList<E> {
         @Override
         public SList<E> tail() {
             throw new NoSuchElementException("Cannot #tail on Nil");
+        }
+
+        @Override
+        public String toString() {
+            return "Nil";
         }
     }
 

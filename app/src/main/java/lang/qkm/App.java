@@ -54,7 +54,7 @@ public class App extends QKMBaseVisitor<Object> {
         }
     }
 
-    private final Map<String, EnumType> enums = new HashMap<>();
+    private final Map<String, Type> types = new HashMap<>();
     private final Map<String, EnumType> enumKeys = new HashMap<>();
 
     private final LinkedList<Map<String, Type>> scope = new LinkedList<>();
@@ -81,14 +81,14 @@ public class App extends QKMBaseVisitor<Object> {
         final String name = ctx.n.getText();
         final Map<String, Type> m = new HashMap<>();
         final EnumType ty = new EnumType(name, Collections.unmodifiableMap(m));
-        this.enums.put(name, ty);
+        this.types.put(name, ty);
 
         for (EnumCaseContext p : ctx.r) {
             final Map.Entry<String, Type> entry = (Map.Entry<String, Type>) this.visit(p);
             if (m.put(entry.getKey(), entry.getValue()) != null) {
                 // because the enum's definition is broken, discard it from
                 // the global mapping.
-                this.enums.remove(name);
+                this.types.remove(name);
                 throw new RuntimeException("Illegal duplicate enum case " + entry.getKey());
             }
         }
@@ -116,13 +116,15 @@ public class App extends QKMBaseVisitor<Object> {
     @Override
     public Type visitTypeName(TypeNameContext ctx) {
         final String name = ctx.n.getText();
+        final Type t = this.types.get(name);
+        if (t != null)
+            return t;
+
         switch (name) {
         case "bool":    return BoolType.INSTANCE;
+        case "string":  return StringType.INSTANCE;
+        case "i32":     return new IntType(32);
         default:
-            final EnumType t = enums.get(name);
-            if (t != null)
-                return t;
-
             throw new RuntimeException("Unknown type " + name);
         }
     }
@@ -282,12 +284,12 @@ public class App extends QKMBaseVisitor<Object> {
 
     @Override
     public Map.Entry<Match, Type> visitPatTrue(PatTrueContext ctx) {
-        return Map.entry(new MatchAtom(true), BoolType.INSTANCE);
+        return Map.entry(new MatchNode(true), BoolType.INSTANCE);
     }
 
     @Override
     public Map.Entry<Match, Type> visitPatFalse(PatFalseContext ctx) {
-        return Map.entry(new MatchAtom(false), BoolType.INSTANCE);
+        return Map.entry(new MatchNode(false), BoolType.INSTANCE);
     }
 
     @Override
@@ -296,7 +298,7 @@ public class App extends QKMBaseVisitor<Object> {
         final StrEscape decoder = new StrEscape(lit, 1, lit.length() - 1);
         final int cp = decoder.next();
 
-        return Map.entry(new MatchAtom(BigInteger.valueOf(cp)), new IntType(32));
+        return Map.entry(new MatchNode(BigInteger.valueOf(cp)), new IntType(32));
     }
 
     @Override
@@ -307,7 +309,7 @@ public class App extends QKMBaseVisitor<Object> {
         while (decoder.hasNext())
             sb.appendCodePoint(decoder.next());
 
-        return Map.entry(new MatchAtom(sb.toString()), StringType.INSTANCE);
+        return Map.entry(new MatchNode(sb.toString()), StringType.INSTANCE);
     }
 
     @Override
@@ -318,7 +320,7 @@ public class App extends QKMBaseVisitor<Object> {
             throw new RuntimeException("Unknown enum constructor");
 
         final Map.Entry<Match, Type> arg = (Map.Entry<Match, Type>) this.visit(ctx.arg);
-        return Map.entry(new MatchCtor(id, arg.getKey()), ty);
+        return Map.entry(new MatchNode(id, arg.getKey()), ty);
     }
 
     @Override
@@ -354,7 +356,7 @@ public class App extends QKMBaseVisitor<Object> {
             }
             final Match res = isComplete
                     ? new MatchComplete()
-                    : new MatchTuple(Collections.unmodifiableList(ps));
+                    : new MatchNode(TupleType.class, Collections.unmodifiableList(ps));
             final TupleType ty = new TupleType(Collections.unmodifiableList(ts));
             return Map.entry(res, ty);
         }

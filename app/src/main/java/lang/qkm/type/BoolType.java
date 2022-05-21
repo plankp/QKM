@@ -1,10 +1,8 @@
 package lang.qkm.type;
 
 import java.util.*;
-import java.math.BigInteger;
-import lang.qkm.util.Range;
 
-public enum BoolType implements Type, Range<Boolean> {
+public enum BoolType implements ClosedType {
 
     INSTANCE;
 
@@ -14,17 +12,18 @@ public enum BoolType implements Type, Range<Boolean> {
     }
 
     @Override
-    public BigInteger size() {
-        return BigInteger.valueOf(2);
+    public Optional<Boolean> sameSize(int sz) {
+        return Optional.of(sz == 2); // true and false
     }
 
     @Override
-    public boolean contains(Object o) {
-        return o instanceof Boolean;
+    public boolean spannedBy(Collection<?> c) {
+        return c.contains(true) && c.contains(false);
     }
 
     @Override
-    public Iterator<Boolean> iterator() {
-        return List.of(true, false).iterator();
+    public List<Type> getArgs(Object id) {
+        // both true and false do not take arguments
+        return List.of();
     }
 }

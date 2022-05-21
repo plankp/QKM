@@ -3,7 +3,7 @@ package lang.qkm.type;
 import java.util.*;
 import java.util.stream.*;
 
-public final class TupleType implements Type {
+public final class TupleType implements ClosedType {
 
     public final List<Type> elements;
 
@@ -16,6 +16,21 @@ public final class TupleType implements Type {
         return this.elements.stream()
                 .map(Object::toString)
                 .collect(Collectors.joining(", ", "(", ")"));
+    }
+
+    @Override
+    public Optional<Boolean> sameSize(int sz) {
+        return Optional.of(sz == 1);
+    }
+
+    @Override
+    public boolean spannedBy(Collection<?> c) {
+        return c.contains(TupleType.class);
+    }
+
+    @Override
+    public List<Type> getArgs(Object id) {
+        return this.elements;
     }
 
     @Override

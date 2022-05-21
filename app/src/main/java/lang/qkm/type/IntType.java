@@ -2,9 +2,8 @@ package lang.qkm.type;
 
 import java.math.BigInteger;
 import java.util.*;
-import lang.qkm.util.Range;
 
-public final class IntType implements Type, Range<BigInteger> {
+public final class IntType implements ClosedType {
 
     public final int bits;
 
@@ -32,45 +31,37 @@ public final class IntType implements Type, Range<BigInteger> {
     }
 
     @Override
-    public BigInteger size() {
-        return BigInteger.ONE.shiftLeft(this.bits);
-    }
-
-    @Override
-    public boolean contains(Object o) {
-        if (!(o instanceof BigInteger))
-            return false;
-
-        return o.equals(IntType.this.signed((BigInteger) o));
-    }
-
-    @Override
-    public Iterator<BigInteger> iterator() {
-        return new Iterator<>() {
-
-            private final BigInteger lastPlusOne = BigInteger.ONE.shiftLeft(bits - 1);
-            private BigInteger i = lastPlusOne.negate().subtract(BigInteger.ONE);
-
-            @Override
-            public boolean hasNext() {
-                return this.i.compareTo(this.lastPlusOne) < 0;
-            }
-
-            @Override
-            public BigInteger next() {
-                if (!this.hasNext())
-                    throw new NoSuchElementException();
-
-                final BigInteger k = this.i.add(BigInteger.ONE);
-                this.i = k;
-                return k;
-            }
-        };
-    }
-
-    @Override
     public String toString() {
         return "i" + this.bits;
+    }
+
+    @Override
+    public Optional<Boolean> sameSize(int sz) {
+        // bits need to be capped at around 32 to 63 to make sure the shift
+        // doesn't overflow.
+        return Optional.of(this.bits < 60 && sz == (1L << this.bits));
+    }
+
+    @Override
+    public boolean spannedBy(Collection<?> c) {
+        // literally iterate through all possible *signed* integer values and
+        // see if the supplied collection contains all of them.
+        final BigInteger max = BigInteger.ONE.shiftLeft(this.bits - 1);
+
+        BigInteger i = max.negate();
+        for (;;) {
+            if (!c.contains(i))
+                return false;
+            i = i.add(BigInteger.ONE);
+            if (max.equals(i))
+                return true;
+        }
+    }
+
+    @Override
+    public List<Type> getArgs(Object id) {
+        // all int values do not take arguments
+        return List.of();
     }
 
     @Override
