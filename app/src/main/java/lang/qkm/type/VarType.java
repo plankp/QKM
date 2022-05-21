@@ -1,7 +1,7 @@
 package lang.qkm.type;
 
 import java.math.BigInteger;
-import java.util.Map;
+import java.util.*;
 
 public final class VarType implements Type {
 
@@ -17,8 +17,8 @@ public final class VarType implements Type {
     }
 
     @Override
-    public boolean contains(VarType vt) {
-        return this.equals(vt);
+    public Set<VarType> collectVars() {
+        return Set.of(this);
     }
 
     @Override
@@ -36,6 +36,14 @@ public final class VarType implements Type {
             m.put(this.key, t);
         }
         return t;
+    }
+
+    @Override
+    public Type expand(Map<BigInteger, Type> m) {
+        final Type t = this.getCompress(m);
+        if (t == this)
+            return this;
+        return t.expand(m);
     }
 
     @Override

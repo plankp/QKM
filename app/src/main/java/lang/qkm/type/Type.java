@@ -5,8 +5,8 @@ import java.util.*;
 
 public interface Type {
 
-    public default boolean contains(VarType tv) {
-        return false;
+    public default Set<VarType> collectVars() {
+        return Set.of();
     }
 
     public default Type replace(Map<VarType, Type> m) {
@@ -14,6 +14,10 @@ public interface Type {
     }
 
     public default Type getCompress(Map<BigInteger, Type> m) {
+        return this;
+    }
+
+    public default Type expand(Map<BigInteger, Type> m) {
         return this;
     }
 
@@ -56,14 +60,13 @@ public interface Type {
                     // both are already equivalent, so just return one.
                     return a;
 
-                if (cmp > 0) {
-                    // otherwise always make sure the key of a is smaller to
-                    // prevent cycles from forming.
+                if (cmp < 0) {
+                    // always map to a type variable that is created earlier
                     final Type t = a;
                     a = b;
                     b = t;
                 }
-            } else if (b.contains((VarType) a))
+            } else if (b.collectVars().contains(a))
                 // disallow recursive types
                 return null;
 

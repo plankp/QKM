@@ -1,5 +1,6 @@
 package lang.qkm.type;
 
+import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
 
@@ -19,11 +20,11 @@ public final class TupleType implements ClosedType {
     }
 
     @Override
-    public boolean contains(VarType vt) {
-        for (final Type t : this.elements)
-            if (t.contains(vt))
-                return true;
-        return false;
+    public Set<VarType> collectVars() {
+        return this.elements.stream()
+                .map(Type::collectVars)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
     }
 
     @Override
@@ -34,6 +35,23 @@ public final class TupleType implements ClosedType {
         while (it.hasNext()) {
             final Type t = it.next();
             final Type r = t.replace(m);
+            changed |= t == r;
+            it.set(r);
+        }
+
+        return !changed
+                ? this
+                : new TupleType(Collections.unmodifiableList(list));
+    }
+
+    @Override
+    public Type expand(Map<BigInteger, Type> m) {
+        boolean changed = false;
+        final ArrayList<Type> list = new ArrayList<>(this.elements);
+        final ListIterator<Type> it = list.listIterator();
+        while (it.hasNext()) {
+            final Type t = it.next();
+            final Type r = t.expand(m);
             changed |= t == r;
             it.set(r);
         }

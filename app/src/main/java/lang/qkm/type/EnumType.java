@@ -1,6 +1,8 @@
 package lang.qkm.type;
 
+import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.*;
 
 public final class EnumType implements ClosedType {
 
@@ -18,12 +20,36 @@ public final class EnumType implements ClosedType {
     }
 
     @Override
+    public Set<VarType> collectVars() {
+        return this.cases.values().stream()
+                .map(Type::collectVars)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+    }
+
+    @Override
     public Type replace(Map<VarType, Type> m) {
         final HashMap<String, Type> k = new HashMap<>(this.cases);
         boolean changed = false;
         for (final Map.Entry<String, Type> pair : k.entrySet()) {
             final Type t = pair.getValue();
             final Type r = t.replace(m);
+            changed |= t == r;
+            pair.setValue(r);
+        }
+
+        return !changed
+                ? this
+                : new EnumType(this.name, Collections.unmodifiableMap(k));
+    }
+
+    @Override
+    public Type expand(Map<BigInteger, Type> m) {
+        final HashMap<String, Type> k = new HashMap<>(this.cases);
+        boolean changed = false;
+        for (final Map.Entry<String, Type> pair : k.entrySet()) {
+            final Type t = pair.getValue();
+            final Type r = t.expand(m);
             changed |= t == r;
             pair.setValue(r);
         }

@@ -1,6 +1,7 @@
 package lang.qkm;
 
 import java.util.*;
+import java.util.stream.*;
 import java.math.BigInteger;
 import java.io.IOException;
 import java.io.BufferedReader;
@@ -166,8 +167,20 @@ public class App extends QKMBaseVisitor<Object> {
         final String name = ctx.n.getText();
         for (final Map<String, Type> depth : this.scope) {
             final Type t = depth.get(name);
-            if (t != null)
-                return t;
+            if (t != null) {
+                if (!(t instanceof PolyType))
+                    return t;
+
+                final PolyType poly = (PolyType) t;
+                if (poly.quant.isEmpty())
+                    return poly.base;
+
+                // each quantifier is bound to a fresh type variable.
+                final Map<VarType, Type> m = new HashMap<>();
+                for (final VarType q : poly.quant)
+                    m.put(q, this.freshType());
+                return poly.base.replace(m);
+            }
         }
         throw new RuntimeException("Unknown binding " + name);
     }
@@ -242,6 +255,7 @@ public class App extends QKMBaseVisitor<Object> {
 
     @Override
     public Type visitExprMatch(ExprMatchContext ctx) {
+        final BigInteger freevar = this.counter;
         Type i = (Type) this.visit(ctx.i);
 
         final LinkedList<SList<Match>> patterns = new LinkedList<>();
@@ -277,7 +291,18 @@ public class App extends QKMBaseVisitor<Object> {
 
         final VarType res = this.freshType();
         for (final MatchCaseContext r : ctx.r) {
-            this.scope.addFirst(scopes.removeFirst());
+            final Map<String, Type> depth = scopes.removeFirst();
+            this.scope.addFirst(depth);
+
+            for (final Map.Entry<String, Type> pair : depth.entrySet()) {
+                final Type expanded = pair.getValue().expand(this.bounds);
+                final Set<VarType> poly = expanded.collectVars()
+                        .stream()
+                        .filter(p -> p.key.compareTo(freevar) > 0)
+                        .collect(Collectors.toSet());
+
+                pair.setValue(new PolyType(poly, expanded));
+            }
 
             final Type t;
             try {
