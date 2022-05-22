@@ -154,6 +154,16 @@ public class App extends QKMBaseVisitor<Object> {
     }
 
     @Override
+    public Type visitTypeFunc(TypeFuncContext ctx) {
+        final Type p = (Type) this.visit(ctx.p);
+        if (ctx.q == null)
+            return p;
+
+        final Type q = (Type) this.visit(ctx.q);
+        return new FuncType(p, q);
+    }
+
+    @Override
     public Type visitTypeName(TypeNameContext ctx) {
         final List<Type> list = ctx.ts.isEmpty()
                 ? List.of()

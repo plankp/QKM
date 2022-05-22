@@ -61,10 +61,14 @@ poly
     ;
 
 enumCase
-    : k=IDENT arg=type
+    : k=IDENT arg=atomType
     ;
 
 type
+    : p=atomType ('=>' q=type)?     # TypeFunc
+    ;
+
+atomType
     : n=IDENT ('[' ((ts+=type ',')* ts+=type)? ']')?    # TypeName
     | '(' ((ts+=type ',')* ts+=type)? ')'               # TypeGroup
     ;
