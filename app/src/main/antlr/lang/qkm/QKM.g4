@@ -20,6 +20,8 @@ MATCH   : 'match';
 WITH    : 'with';
 LB      : '{';
 RB      : '}';
+LS      : '[';
+RS      : ']';
 LP      : '(';
 RP      : ')';
 COMMA   : ',';
@@ -50,8 +52,12 @@ line
     ;
 
 defEnum
-    : 'enum' n=IDENT r+=enumCase
-    | 'enum' n=IDENT '{' ((r+=enumCase ',')* r+=enumCase)? '}'
+    : 'enum' n=IDENT p=poly? r+=enumCase
+    | 'enum' n=IDENT p=poly? '{' ((r+=enumCase ',')* r+=enumCase)? '}'
+    ;
+
+poly
+    : '[' ((qs+=IDENT ',')* qs+=IDENT)? ']'
     ;
 
 enumCase
@@ -59,8 +65,8 @@ enumCase
     ;
 
 type
-    : n=IDENT                               # TypeName
-    | '(' ((ts+=type ',')* ts+=type)? ')'   # TypeGroup
+    : n=IDENT ('[' ((ts+=type ',')* ts+=type)? ']')?    # TypeName
+    | '(' ((ts+=type ',')* ts+=type)? ')'               # TypeGroup
     ;
 
 expr

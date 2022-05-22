@@ -6,22 +6,40 @@ import java.util.stream.*;
 
 public final class EnumType implements ClosedType {
 
-    public final String name;
-    public final Map<String, Type> cases;
+    public static final class Template {
 
-    public EnumType(String name, Map<String, Type> cases) {
-        this.name = name;
-        this.cases = cases;
+        public final String name;
+        public final List<VarType> quant;
+        public final Map<String, Type> cases;
+
+        public Template(String name, List<VarType> quant, Map<String, Type> cases) {
+            this.name = name;
+            this.quant = Collections.unmodifiableList(quant);
+            this.cases = Collections.unmodifiableMap(cases);
+        }
+
+        @Override
+        public String toString() {
+            return "enum " + this.name + this.quant + " " + this.cases;
+        }
+    }
+
+    public final Template body;
+    public final List<? extends Type> args;
+
+    public EnumType(Template body, List<? extends Type> args) {
+        this.body = body;
+        this.args = Collections.unmodifiableList(args);
     }
 
     @Override
     public String toString() {
-        return "enum " + this.name;
+        return "enum " + this.body.name + this.args;
     }
 
     @Override
     public Set<VarType> collectVars() {
-        return this.cases.values().stream()
+        return this.args.stream()
                 .map(Type::collectVars)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
@@ -29,39 +47,41 @@ public final class EnumType implements ClosedType {
 
     @Override
     public Type replace(Map<VarType, Type> m) {
-        final HashMap<String, Type> k = new HashMap<>(this.cases);
         boolean changed = false;
-        for (final Map.Entry<String, Type> pair : k.entrySet()) {
-            final Type t = pair.getValue();
+        final ArrayList<Type> list = new ArrayList<>(this.args);
+        final ListIterator<Type> it = list.listIterator();
+        while (it.hasNext()) {
+            final Type t = it.next();
             final Type r = t.replace(m);
-            changed |= t == r;
-            pair.setValue(r);
+            changed |= t != r;
+            it.set(r);
         }
 
         return !changed
                 ? this
-                : new EnumType(this.name, Collections.unmodifiableMap(k));
+                : new EnumType(this.body, list);
     }
 
     @Override
     public Type expand(Map<BigInteger, Type> m) {
-        final HashMap<String, Type> k = new HashMap<>(this.cases);
         boolean changed = false;
-        for (final Map.Entry<String, Type> pair : k.entrySet()) {
-            final Type t = pair.getValue();
+        final ArrayList<Type> list = new ArrayList<>(this.args);
+        final ListIterator<Type> it = list.listIterator();
+        while (it.hasNext()) {
+            final Type t = it.next();
             final Type r = t.expand(m);
-            changed |= t == r;
-            pair.setValue(r);
+            changed |= t != r;
+            it.set(r);
         }
 
         return !changed
                 ? this
-                : new EnumType(this.name, Collections.unmodifiableMap(k));
+                : new EnumType(this.body, list);
     }
 
     @Override
     public Optional<Boolean> sameSize(int sz) {
-        final int refsz = this.cases.size();
+        final int refsz = this.body.cases.size();
         if (0 <= refsz && refsz < Integer.MAX_VALUE)
             return Optional.of(sz == refsz);
 
@@ -71,28 +91,21 @@ public final class EnumType implements ClosedType {
 
     @Override
     public boolean spannedBy(Collection<?> c) {
-        return c.containsAll(this.cases.keySet());
+        return c.containsAll(this.body.cases.keySet());
     }
 
     @Override
     public List<Type> getArgs(Object id) {
         // here we assume id is valid
-        return List.of(this.cases.get(id));
-    }
+        final Type t = this.body.cases.get(id);
+        if (this.body.quant.isEmpty())
+            return List.of(t);
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.name, this.cases);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this)
-            return true;
-        if (!(obj instanceof EnumType))
-            return false;
-
-        final EnumType ty = (EnumType) obj;
-        return this.name.equals(ty.name) && this.cases.equals(ty.cases);
+        final Map<VarType, Type> m = new HashMap<>();
+        final Iterator<VarType> q = this.body.quant.iterator();
+        final Iterator<? extends Type> r = this.args.iterator();
+        while (q.hasNext() && r.hasNext())
+            m.put(q.next(), r.next());
+        return List.of(t.replace(m));
     }
 }

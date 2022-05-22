@@ -10,7 +10,7 @@ public final class PolyType implements Type {
     public final Type base;
 
     public PolyType(Set<VarType> quant, Type base) {
-        this.quant = quant;
+        this.quant = Collections.unmodifiableSet(quant);
         this.base = base;
     }
 
