@@ -13,11 +13,13 @@ COLON   : ':';
 TRUE    : 'true';
 FALSE   : 'false';
 UBAR    : '_';
-SLASH   : '\\';
-ARROW   : '=>';
-ENUM    : 'enum';
+BAR     : '|';
+SET     : '=';
+ARROW   : '->';
+TYPE    : 'type';
 MATCH   : 'match';
 WITH    : 'with';
+FUN     : 'fun';
 LB      : '{';
 RB      : '}';
 LS      : '[';
@@ -52,8 +54,7 @@ line
     ;
 
 defEnum
-    : 'enum' n=IDENT p=poly? r+=enumCase
-    | 'enum' n=IDENT p=poly? '{' ((r+=enumCase ',')* r+=enumCase)? '}'
+    : 'type' n=IDENT p=poly? '=' '|'? r+=enumCase ('|' r+=enumCase)*
     ;
 
 poly
@@ -65,7 +66,7 @@ enumCase
     ;
 
 type
-    : p=atomType ('=>' q=type)?     # TypeFunc
+    : p=atomType ('->' q=type)?     # TypeFunc
     ;
 
 atomType
@@ -74,22 +75,20 @@ atomType
     ;
 
 expr
-    : f=expr arg=expr                       # ExprApply
-    | n=IDENT                               # ExprIdent
-    | TRUE                                  # ExprTrue
-    | FALSE                                 # ExprFalse
-    | CHAR                                  # ExprChar
-    | TEXT                                  # ExprText
-    | '\\' f=matchCase                      # ExprLambda
-    | '(' ((es+=expr ',')* es+=expr)? ')'   # ExprGroup
-    | 'match' i=expr 'with' (
-        (r+=matchCase)
-        | '{' ((r+=matchCase ',')* r+=matchCase)? '}'
-    )                                       # ExprMatch
+    : f=expr arg=expr                           # ExprApply
+    | n=IDENT                                   # ExprIdent
+    | TRUE                                      # ExprTrue
+    | FALSE                                     # ExprFalse
+    | CHAR                                      # ExprChar
+    | TEXT                                      # ExprText
+    | 'fun' f=matchCase                         # ExprLambda
+    | '(' ((es+=expr ',')* es+=expr)? ')'       # ExprGroup
+    | 'match' i=expr 'with'
+        '|'? r+=matchCase ('|' r+=matchCase)*   # ExprMatch
     ;
 
 matchCase
-    : p=pattern '=>' e=expr
+    : p=pattern '->' e=expr
     ;
 
 pattern
@@ -99,6 +98,6 @@ pattern
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
     | id=IDENT arg=pattern                      # PatDecons
-    | 'val' n=IDENT                             # PatBind
+    | n=IDENT                                   # PatBind
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
     ;
