@@ -9,7 +9,7 @@ public final class TupleType implements ClosedType {
     public final List<Type> elements;
 
     public TupleType(List<Type> elements) {
-        this.elements = elements;
+        this.elements = Collections.unmodifiableList(elements);
     }
 
     @Override
@@ -35,13 +35,13 @@ public final class TupleType implements ClosedType {
         while (it.hasNext()) {
             final Type t = it.next();
             final Type r = t.replace(m);
-            changed |= t == r;
+            changed |= t != r;
             it.set(r);
         }
 
         return !changed
                 ? this
-                : new TupleType(Collections.unmodifiableList(list));
+                : new TupleType(list);
     }
 
     @Override
@@ -52,13 +52,13 @@ public final class TupleType implements ClosedType {
         while (it.hasNext()) {
             final Type t = it.next();
             final Type r = t.expand(m);
-            changed |= t == r;
+            changed |= t != r;
             it.set(r);
         }
 
         return !changed
                 ? this
-                : new TupleType(Collections.unmodifiableList(list));
+                : new TupleType(list);
     }
 
     @Override

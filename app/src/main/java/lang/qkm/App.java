@@ -6,6 +6,7 @@ import java.math.BigInteger;
 import java.io.IOException;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -55,8 +56,8 @@ public class App extends QKMBaseVisitor<Object> {
         }
     }
 
-    private final Map<String, Type> types = new HashMap<>();
-    private final Map<String, EnumType> enumKeys = new HashMap<>();
+    private final LinkedList<Map<String, Type>> types = new LinkedList<>();
+    private final Map<String, PolyType> enumKeys = new HashMap<>();
 
     private final LinkedList<Map<String, Type>> scope = new LinkedList<>();
     private final Map<BigInteger, Type> bounds = new HashMap<>();
@@ -65,6 +66,7 @@ public class App extends QKMBaseVisitor<Object> {
 
     public App() {
         // make sure we have at least one scope depth to work with.
+        this.types.addFirst(new HashMap<>());
         this.scope.addFirst(new HashMap<>());
     }
 
@@ -72,40 +74,77 @@ public class App extends QKMBaseVisitor<Object> {
         return new VarType((this.counter = this.counter.add(BigInteger.ONE)));
     }
 
+    private Type freshType(PolyType p) {
+        if (p.quant.isEmpty())
+            return p.base;
+
+        // each quantifier is re-bound to a fresh type variable.
+        final Map<VarType, Type> m = new HashMap<>();
+        for (final VarType q : p.quant)
+            m.put(q, this.freshType());
+        return p.base.replace(m);
+    }
+
     @Override
-    public Void visitDefEnum(DefEnumContext ctx) {
+    public EnumType.Template visitDefEnum(DefEnumContext ctx) {
         // because enums are recursive, we stuff it in the global mapping
         // first!
         //
         // (it's also pretty sketchy how we are modifying the underlying map
         // of an unmodifiable map view...)
         final String name = ctx.n.getText();
-        final Map<String, Type> m = new HashMap<>();
-        final EnumType ty = new EnumType(name, Collections.unmodifiableMap(m));
-        this.types.put(name, ty);
+        final Map<String, Type> defm = this.types.getFirst();
+        this.types.addFirst(new HashMap<>());
+        try {
+            final List<VarType> lst = ctx.p == null
+                    ? List.of()
+                    : (List<VarType>) this.visit(ctx.p);
+            final Map<String, Type> m = new HashMap<>();
+            final EnumType ty = new EnumType(new EnumType.Template(name, lst, m), lst);
+            defm.put(name, ty);
 
-        for (EnumCaseContext p : ctx.r) {
-            final Map.Entry<String, Type> entry = (Map.Entry<String, Type>) this.visit(p);
-            if (m.put(entry.getKey(), entry.getValue()) != null) {
-                // because the enum's definition is broken, discard it from
-                // the global mapping.
-                this.types.remove(name);
-                throw new RuntimeException("Illegal duplicate enum case " + entry.getKey());
+            for (EnumCaseContext p : ctx.r) {
+                final Map.Entry<String, Type> entry = (Map.Entry<String, Type>) this.visit(p);
+                if (m.put(entry.getKey(), entry.getValue()) != null) {
+                    // because the enum's definition is broken, discard it from
+                    // the global mapping.
+                    defm.remove(name);
+                    throw new RuntimeException("Illegal duplicate enum case " + entry.getKey());
+                }
             }
+
+            // register each constructor as polytype functions
+            final Set<VarType> quants = new HashSet<>(lst);
+            final Map<String, Type> level = this.scope.getFirst();
+            for (final Map.Entry<String, Type> p : m.entrySet()) {
+                // treatt each constructor as a polytype function:
+                // enum type[qs...] { C arg }
+                // C :: \forall qs. arg -> enum type[qs...]
+                final String ctor = p.getKey();
+                final PolyType pf = new PolyType(quants, new FuncType(p.getValue(), ty));
+
+                this.enumKeys.put(ctor, pf);
+                level.put(ctor, pf);
+            }
+
+            return ty.body;
+        } finally {
+            this.types.removeFirst();
         }
+    }
 
-        // register it for the deconstruction pattern to work.
-        for (final String key : m.keySet())
-            this.enumKeys.put(key, ty);
-
-        // we also need to add each constructor to the scope.
-        final Map<String, Type> level = this.scope.getFirst();
-        for (final Map.Entry<String, Type> p : m.entrySet())
-            // treat each constructor as a function:
-            // enum color { Red() }
-            // Red :: () -> enum color
-            level.put(p.getKey(), new FuncType(p.getValue(), ty));
-        return null;
+    @Override
+    public List<VarType> visitPoly(PolyContext ctx) {
+        final Map<String, Type> defm = this.types.getFirst();
+        final List<VarType> m = new ArrayList<>(ctx.qs.size());
+        for (Token t : ctx.qs) {
+            final String name = t.getText();
+            final VarType tv = this.freshType();
+            if (defm.put(name, tv) != null)
+                throw new RuntimeException("Duplicate quantifier type " + name);
+            m.add(tv);
+        }
+        return m;
     }
 
     @Override
@@ -116,11 +155,35 @@ public class App extends QKMBaseVisitor<Object> {
 
     @Override
     public Type visitTypeName(TypeNameContext ctx) {
-        final String name = ctx.n.getText();
-        final Type t = this.types.get(name);
-        if (t != null)
-            return t;
+        final List<Type> list = ctx.ts.isEmpty()
+                ? List.of()
+                : new ArrayList<>(ctx.ts.size());
+        for (final TypeContext t : ctx.ts)
+            list.add((Type) this.visit(t));
 
+        final String name = ctx.n.getText();
+        for (final Map<String, Type> depth : this.types) {
+            final Type t = depth.get(name);
+            if (t == null)
+                continue;
+
+            if (t instanceof EnumType) {
+                final EnumType et = (EnumType) t;
+
+                if (list.size() != et.args.size())
+                    throw new RuntimeException("Illegal instantiation of type " + et);
+                return new EnumType(et.body, list);
+            }
+            return t;
+        }
+
+        final Type t = this.lookupCoreType(name);
+        if (!list.isEmpty())
+            throw new RuntimeException("Illegal instantiation of type " + t);
+        return t;
+    }
+
+    private Type lookupCoreType(String name) {
         switch (name) {
         case "bool":    return BoolType.INSTANCE;
         case "string":  return StringType.INSTANCE;
@@ -142,7 +205,7 @@ public class App extends QKMBaseVisitor<Object> {
             final ArrayList<Type> ts = new ArrayList<>(ctx.ts.size());
             for (final TypeContext el : ctx.ts)
                 ts.add((Type) this.visit(el));
-            return new TupleType(Collections.unmodifiableList(ts));
+            return new TupleType(ts);
         }
     }
 
@@ -159,7 +222,7 @@ public class App extends QKMBaseVisitor<Object> {
         if (Type.unify(f, new FuncType(arg, res), this.bounds) == null)
             throw new RuntimeException("Illegal types for (" + f.getCompress(this.bounds) + ") " + arg.getCompress(this.bounds));
 
-        return res.getCompress(this.bounds);
+        return res.expand(this.bounds);
     }
 
     @Override
@@ -171,15 +234,7 @@ public class App extends QKMBaseVisitor<Object> {
                 if (!(t instanceof PolyType))
                     return t;
 
-                final PolyType poly = (PolyType) t;
-                if (poly.quant.isEmpty())
-                    return poly.base;
-
-                // each quantifier is bound to a fresh type variable.
-                final Map<VarType, Type> m = new HashMap<>();
-                for (final VarType q : poly.quant)
-                    m.put(q, this.freshType());
-                return poly.base.replace(m);
+                return this.freshType((PolyType) t);
             }
         }
         throw new RuntimeException("Unknown binding " + name);
@@ -230,8 +285,7 @@ public class App extends QKMBaseVisitor<Object> {
                 throw new RuntimeException("Illegal anonymous function with refutable pattern");
 
             final Type body = (Type) this.visit(ctx.f.e);
-            return new FuncType(type.getCompress(this.bounds),
-                                body.getCompress(this.bounds));
+            return new FuncType(type, body).expand(this.bounds);
         } finally {
             this.scope.removeFirst();
         }
@@ -249,7 +303,7 @@ public class App extends QKMBaseVisitor<Object> {
             final ArrayList<Type> es = new ArrayList<>(ctx.es.size());
             for (final ExprContext el : ctx.es)
                 es.add((Type) this.visit(el));
-            return new TupleType(Collections.unmodifiableList(es));
+            return new TupleType(es);
         }
     }
 
@@ -258,6 +312,7 @@ public class App extends QKMBaseVisitor<Object> {
         final BigInteger freevar = this.counter;
         Type i = (Type) this.visit(ctx.i);
 
+        final boolean generalize = this.counter.compareTo(freevar) > 0;
         final LinkedList<SList<Match>> patterns = new LinkedList<>();
         final LinkedList<Map<String, Type>> scopes = new LinkedList<>();
         for (final MatchCaseContext r : ctx.r) {
@@ -296,10 +351,9 @@ public class App extends QKMBaseVisitor<Object> {
 
             for (final Map.Entry<String, Type> pair : depth.entrySet()) {
                 final Type expanded = pair.getValue().expand(this.bounds);
-                final Set<VarType> poly = expanded.collectVars()
-                        .stream()
-                        .filter(p -> p.key.compareTo(freevar) > 0)
-                        .collect(Collectors.toSet());
+                final Set<VarType> poly = generalize
+                        ? expanded.collectVars()
+                        : Set.of();
 
                 pair.setValue(new PolyType(poly, expanded));
             }
@@ -361,12 +415,21 @@ public class App extends QKMBaseVisitor<Object> {
     @Override
     public Map.Entry<Match, Type> visitPatDecons(PatDeconsContext ctx) {
         final String id = ctx.id.getText();
-        final EnumType ty = this.enumKeys.get(id);
+        final PolyType ty = this.enumKeys.get(id);
         if (ty == null)
             throw new RuntimeException("Unknown enum constructor");
 
-        final Map.Entry<Match, Type> arg = (Map.Entry<Match, Type>) this.visit(ctx.arg);
-        return Map.entry(new MatchNode(id, arg.getKey()), ty);
+        final Map.Entry<Match, Type> pair = (Map.Entry<Match, Type>) this.visit(ctx.arg);
+        final MatchNode node = new MatchNode(id, pair.getKey());
+
+        // enum constructors are encoded as polytype functions, so we perform
+        // the call to constraint the type.
+        final Type arg = pair.getValue();
+        final VarType res = this.freshType();
+        if (Type.unify(this.freshType(ty), new FuncType(arg, res), this.bounds) == null)
+            throw new RuntimeException("Illegal types for (" + ty + ") " + arg);
+
+        return Map.entry(node, res.expand(this.bounds));
     }
 
     @Override
@@ -403,7 +466,7 @@ public class App extends QKMBaseVisitor<Object> {
             final Match res = isComplete
                     ? new MatchComplete()
                     : new MatchNode(TupleType.class, Collections.unmodifiableList(ps));
-            final TupleType ty = new TupleType(Collections.unmodifiableList(ts));
+            final TupleType ty = new TupleType(ts);
             return Map.entry(res, ty);
         }
     }

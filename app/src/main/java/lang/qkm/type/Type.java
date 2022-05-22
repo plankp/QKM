@@ -44,7 +44,7 @@ public interface Type {
         a = a.getCompress(m);
         b = b.getCompress(m);
         if (a == b)
-            // handles things like enums and bools
+            // handles things like bools
             return a;
 
         if (b instanceof VarType) {
@@ -105,6 +105,26 @@ public interface Type {
             return ia.hasNext() != ib.hasNext()
                     ? null // just in case size > INTMAX
                     : new TupleType(Collections.unmodifiableList(elements));
+        }
+
+        if (a instanceof EnumType && b instanceof EnumType) {
+            final EnumType ea = (EnumType) a;
+            final EnumType eb = (EnumType) b;
+
+            if (ea.body != eb.body)
+                return null;
+            final ArrayList<Type> args = new ArrayList<>(ea.args.size());
+            final Iterator<? extends Type> ia = ea.args.iterator();
+            final Iterator<? extends Type> ib = eb.args.iterator();
+            while (ia.hasNext() && ib.hasNext()) {
+                final Type u = impl(ia.next(), ib.next(), m);
+                if (u == null)
+                    return null;
+                args.add(u);
+            }
+            return ia.hasNext() != ib.hasNext()
+                    ? null // just in case size > INTMAX
+                    : new EnumType(ea.body, args);
         }
 
         if (a instanceof IntType && a.equals(b))
