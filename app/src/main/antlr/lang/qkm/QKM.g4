@@ -68,7 +68,7 @@ poly
     ;
 
 enumCase
-    : k=CTOR arg=atomType
+    : k=CTOR arg=atomType?
     ;
 
 type
@@ -82,7 +82,7 @@ atomType
 
 expr
     : f=expr arg=expr                           # ExprApply
-    | k=CTOR arg=expr                           # ExprCons
+    | k=CTOR arg=expr?                          # ExprCons
     | n=IDENT                                   # ExprIdent
     | TRUE                                      # ExprTrue
     | FALSE                                     # ExprFalse
@@ -104,7 +104,7 @@ pattern
     | FALSE                                     # PatFalse
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
-    | id=CTOR arg=pattern                       # PatDecons
+    | id=CTOR arg=pattern?                      # PatDecons
     | n=IDENT                                   # PatBind
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
     ;

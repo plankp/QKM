@@ -99,12 +99,12 @@ public class App extends QKMBaseVisitor<Object> {
             final List<VarType> lst = ctx.p == null
                     ? List.of()
                     : (List<VarType>) this.visit(ctx.p);
-            final Map<String, Type> m = new HashMap<>();
+            final Map<String, Optional<Type>> m = new HashMap<>();
             final EnumType ty = new EnumType(new EnumType.Template(name, lst, m), lst);
             defm.put(name, ty);
 
             for (EnumCaseContext p : ctx.r) {
-                final Map.Entry<String, Type> entry = (Map.Entry<String, Type>) this.visit(p);
+                final Map.Entry<String, Optional<Type>> entry = (Map.Entry<String, Optional<Type>>) this.visit(p);
                 if (m.put(entry.getKey(), entry.getValue()) != null) {
                     // because the enum's definition is broken, discard it from
                     // the global mapping.
@@ -115,12 +115,16 @@ public class App extends QKMBaseVisitor<Object> {
 
             // register each constructor as polytype functions
             final Set<VarType> quants = new HashSet<>(lst);
-            for (final Map.Entry<String, Type> p : m.entrySet()) {
-                // treatt each constructor as a polytype function:
-                // enum type[qs...] { C arg }
-                // C :: \forall qs. arg -> enum type[qs...]
+            for (final Map.Entry<String, Optional<Type>> p : m.entrySet()) {
+                // treat each constructor as a polytype:
+                // type type[qs...] = C1 arg | C2
+                // C1 :: \forall qs. arg -> enum type[qs...]
+                // C2 :: \forall qs. enum type[qs...]
                 final String ctor = p.getKey();
-                final PolyType pf = new PolyType(quants, new FuncType(p.getValue(), ty));
+                final Optional<Type> arg = p.getValue();
+                final PolyType pf = arg.isEmpty()
+                        ? new PolyType(quants, ty)
+                        : new PolyType(quants, new FuncType(arg.get(), ty));
 
                 this.enumKeys.put(ctor, pf);
             }
@@ -146,9 +150,11 @@ public class App extends QKMBaseVisitor<Object> {
     }
 
     @Override
-    public Map.Entry<String, Type> visitEnumCase(EnumCaseContext ctx) {
-        final Type t = (Type) this.visit(ctx.arg);
-        return Map.entry(ctx.k.getText(), t);
+    public Map.Entry<String, Optional<Type>> visitEnumCase(EnumCaseContext ctx) {
+        final String name = ctx.k.getText();
+        return ctx.arg == null
+                ? Map.entry(name, Optional.empty())
+                : Map.entry(name, Optional.of((Type) this.visit(ctx.arg)));
     }
 
     @Override
@@ -240,13 +246,20 @@ public class App extends QKMBaseVisitor<Object> {
         if (ty == null)
             throw new RuntimeException("Unknown enum constructor");
 
-        final Type arg = (Type) this.visit(ctx.arg);
+        final Type fresh = this.freshType(ty);
 
-        // enum constructors are encoded as polytype functions, so we perform
-        // the call to constrain the type.
+        // argless constructors are encoded as polytype enum.
+        if (ctx.arg == null) {
+            if (!(fresh instanceof EnumType))
+                throw new RuntimeException("Illegal type for " + id);
+            return fresh;
+        }
+
+        // constructors with arguments are encoded as polytype functions.
+        final Type arg = (Type) this.visit(ctx.arg);
         final VarType res = this.freshType();
-        if (Type.unify(this.freshType(ty), new FuncType(arg, res), this.bounds) == null)
-            throw new RuntimeException("Illegal type for " + id + " " + arg);
+        if (Type.unify(fresh, new FuncType(arg, res), this.bounds) == null)
+            throw new RuntimeException("Illegal types for " + id + " " + arg);
 
         return res.expand(this.bounds);
     }
@@ -447,15 +460,23 @@ public class App extends QKMBaseVisitor<Object> {
         if (ty == null)
             throw new RuntimeException("Unknown enum constructor");
 
+        final Type fresh = this.freshType(ty);
+
+        // argless constructors are encoded as polytype enum.
+        if (ctx.arg == null) {
+            if (!(fresh instanceof EnumType))
+                throw new RuntimeException("Illegal type for " + id);
+            return Map.entry(new MatchNode(id), fresh);
+        }
+
         final Map.Entry<Match, Type> pair = (Map.Entry<Match, Type>) this.visit(ctx.arg);
         final MatchNode node = new MatchNode(id, pair.getKey());
 
-        // enum constructors are encoded as polytype functions, so we perform
-        // the call to constraint the type.
+        // constructors with arguments are encoded as polytype functions.
         final Type arg = pair.getValue();
         final VarType res = this.freshType();
-        if (Type.unify(this.freshType(ty), new FuncType(arg, res), this.bounds) == null)
-            throw new RuntimeException("Illegal types for (" + ty + ") " + arg);
+        if (Type.unify(fresh, new FuncType(arg, res), this.bounds) == null)
+            throw new RuntimeException("Illegal types for " + ty + " " + arg);
 
         return Map.entry(node, res.expand(this.bounds));
     }

@@ -10,9 +10,9 @@ public final class EnumType implements ClosedType {
 
         public final String name;
         public final List<VarType> quant;
-        public final Map<String, Type> cases;
+        public final Map<String, Optional<Type>> cases;
 
-        public Template(String name, List<VarType> quant, Map<String, Type> cases) {
+        public Template(String name, List<VarType> quant, Map<String, Optional<Type>> cases) {
             this.name = name;
             this.quant = Collections.unmodifiableList(quant);
             this.cases = Collections.unmodifiableMap(cases);
@@ -94,15 +94,17 @@ public final class EnumType implements ClosedType {
     @Override
     public List<Type> getArgs(Object id) {
         // here we assume id is valid
-        final Type t = this.body.cases.get(id);
+        final Optional<Type> t = this.body.cases.get(id);
+        if (t.isEmpty())
+            return List.of();
         if (this.body.quant.isEmpty())
-            return List.of(t);
+            return List.of(t.get());
 
         final Map<VarType, Type> m = new HashMap<>();
         final Iterator<VarType> q = this.body.quant.iterator();
         final Iterator<? extends Type> r = this.args.iterator();
         while (q.hasNext() && r.hasNext())
             m.put(q.next(), r.next());
-        return List.of(t.replace(m));
+        return List.of(t.get().replace(m));
     }
 }
