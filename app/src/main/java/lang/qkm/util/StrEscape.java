@@ -10,7 +10,7 @@ public final class StrEscape {
     public StrEscape(String text, int start, int end) {
         if (text == null)
             throw new IllegalArgumentException("Illegal escape on null string");
-        if (0 > start || start >= end || end > text.length())
+        if (0 > start || start > end || end > text.length())
             throw new IllegalArgumentException("Illegal span [" + start + ", " + end + ") over string of length " + text.length());
 
         this.buf = text;
