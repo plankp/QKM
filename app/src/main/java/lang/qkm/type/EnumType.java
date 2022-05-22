@@ -38,11 +38,8 @@ public final class EnumType implements ClosedType {
     }
 
     @Override
-    public Set<VarType> collectVars() {
-        return this.args.stream()
-                .map(Type::collectVars)
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
+    public Stream<VarType> collectVars() {
+        return this.args.stream().flatMap(Type::collectVars);
     }
 
     @Override

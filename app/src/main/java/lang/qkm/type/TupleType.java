@@ -20,11 +20,8 @@ public final class TupleType implements ClosedType {
     }
 
     @Override
-    public Set<VarType> collectVars() {
-        return this.elements.stream()
-                .map(Type::collectVars)
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
+    public Stream<VarType> collectVars() {
+        return this.elements.stream().flatMap(Type::collectVars);
     }
 
     @Override

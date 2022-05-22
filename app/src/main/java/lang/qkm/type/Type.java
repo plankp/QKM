@@ -2,11 +2,12 @@ package lang.qkm.type;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.*;
 
 public interface Type {
 
-    public default Set<VarType> collectVars() {
-        return Set.of();
+    public default Stream<VarType> collectVars() {
+        return Stream.of();
     }
 
     public default Type replace(Map<VarType, Type> m) {
@@ -66,7 +67,7 @@ public interface Type {
                     a = b;
                     b = t;
                 }
-            } else if (b.collectVars().contains(a))
+            } else if (b.collectVars().anyMatch(a::equals))
                 // disallow recursive types
                 return null;
 

@@ -2,6 +2,7 @@ package lang.qkm.type;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.*;
 
 public final class VarType implements Type {
 
@@ -17,8 +18,8 @@ public final class VarType implements Type {
     }
 
     @Override
-    public Set<VarType> collectVars() {
-        return Set.of(this);
+    public Stream<VarType> collectVars() {
+        return Stream.of(this);
     }
 
     @Override

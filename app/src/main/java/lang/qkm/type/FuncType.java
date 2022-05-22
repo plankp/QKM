@@ -2,6 +2,7 @@ package lang.qkm.type;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.*;
 
 public final class FuncType implements Type {
 
@@ -21,17 +22,8 @@ public final class FuncType implements Type {
     }
 
     @Override
-    public Set<VarType> collectVars() {
-        final Set<VarType> s1 = this.arg.collectVars();
-        final Set<VarType> s2 = this.ret.collectVars();
-        if (s1.isEmpty())
-            return s2;
-        if (s2.isEmpty())
-            return s1;
-
-        final HashSet<VarType> s = new HashSet<>(s1);
-        s.addAll(s2);
-        return s;
+    public Stream<VarType> collectVars() {
+        return Stream.concat(this.arg.collectVars(), this.ret.collectVars());
     }
 
     @Override

@@ -351,9 +351,11 @@ public class App extends QKMBaseVisitor<Object> {
 
             for (final Map.Entry<String, Type> pair : depth.entrySet()) {
                 final Type expanded = pair.getValue().expand(this.bounds);
-                final Set<VarType> poly = generalize
-                        ? expanded.collectVars()
-                        : Set.of();
+                final Set<VarType> poly = !generalize
+                        ? Set.of()
+                        : expanded.collectVars()
+                                .filter(p -> p.key.compareTo(freevar) > 0)
+                                .collect(Collectors.toSet());
 
                 pair.setValue(new PolyType(poly, expanded));
             }
