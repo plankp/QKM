@@ -42,7 +42,13 @@ fragment ESCAPE
 
 CHAR    : '\'' (~[\r\n'\\] | ESCAPE) '\'';
 TEXT    : '"' (~[\r\n"\\] | ESCAPE)* '"';
-IDENT   : [_\p{Lu}\p{Ll}\p{Lt}\p{Lo}\p{Lm}][_\p{Lu}\p{Ll}\p{Lt}\p{Lo}\p{Lm}\p{Nd}]*;
+
+fragment NAME
+    : [_\p{Lu}\p{Ll}\p{Lt}\p{Lo}\p{Lm}][_\p{Lu}\p{Ll}\p{Lt}\p{Lo}\p{Lm}\p{Nd}]*
+    ;
+
+IDENT   : NAME;
+CTOR    : '#' NAME;
 
 lines
     : line+
@@ -62,7 +68,7 @@ poly
     ;
 
 enumCase
-    : k=IDENT arg=atomType
+    : k=CTOR arg=atomType
     ;
 
 type
@@ -76,6 +82,7 @@ atomType
 
 expr
     : f=expr arg=expr                           # ExprApply
+    | k=CTOR arg=expr                           # ExprCons
     | n=IDENT                                   # ExprIdent
     | TRUE                                      # ExprTrue
     | FALSE                                     # ExprFalse
@@ -97,7 +104,7 @@ pattern
     | FALSE                                     # PatFalse
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
-    | id=IDENT arg=pattern                      # PatDecons
+    | id=CTOR arg=pattern                       # PatDecons
     | n=IDENT                                   # PatBind
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
     ;

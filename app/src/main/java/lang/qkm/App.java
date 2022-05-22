@@ -115,7 +115,6 @@ public class App extends QKMBaseVisitor<Object> {
 
             // register each constructor as polytype functions
             final Set<VarType> quants = new HashSet<>(lst);
-            final Map<String, Type> level = this.scope.getFirst();
             for (final Map.Entry<String, Type> p : m.entrySet()) {
                 // treatt each constructor as a polytype function:
                 // enum type[qs...] { C arg }
@@ -124,7 +123,6 @@ public class App extends QKMBaseVisitor<Object> {
                 final PolyType pf = new PolyType(quants, new FuncType(p.getValue(), ty));
 
                 this.enumKeys.put(ctor, pf);
-                level.put(ctor, pf);
             }
 
             return ty.body;
@@ -231,6 +229,24 @@ public class App extends QKMBaseVisitor<Object> {
         final VarType res = this.freshType();
         if (Type.unify(f, new FuncType(arg, res), this.bounds) == null)
             throw new RuntimeException("Illegal types for (" + f.getCompress(this.bounds) + ") " + arg.getCompress(this.bounds));
+
+        return res.expand(this.bounds);
+    }
+
+    @Override
+    public Type visitExprCons(ExprConsContext ctx) {
+        final String id = ctx.k.getText();
+        final PolyType ty = this.enumKeys.get(id);
+        if (ty == null)
+            throw new RuntimeException("Unknown enum constructor");
+
+        final Type arg = (Type) this.visit(ctx.arg);
+
+        // enum constructors are encoded as polytype functions, so we perform
+        // the call to constrain the type.
+        final VarType res = this.freshType();
+        if (Type.unify(this.freshType(ty), new FuncType(arg, res), this.bounds) == null)
+            throw new RuntimeException("Illegal type for " + id + " " + arg);
 
         return res.expand(this.bounds);
     }
