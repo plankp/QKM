@@ -67,7 +67,7 @@ public interface Type {
                     a = b;
                     b = t;
                 }
-            } else if (b.collectVars().anyMatch(a::equals))
+            } else if (b.collectVars().map(v -> v.getCompress(m)).anyMatch(a::equals))
                 // disallow recursive types
                 return null;
 

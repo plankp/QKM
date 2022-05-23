@@ -10,6 +10,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import lang.qkm.sem.*;
 import lang.qkm.util.*;
 import lang.qkm.type.*;
 import lang.qkm.match.*;
@@ -221,6 +222,38 @@ public class App extends QKMBaseVisitor<Object> {
                 ts.add((Type) this.visit(el));
             return new TupleType(ts);
         }
+    }
+
+    @Override
+    public Type visitDefRecBind(DefRecBindContext ctx) {
+        final BigInteger freevar = this.counter;
+        final String name = ctx.n.getText();
+        final Type t = this.freshType();
+        final Map<String, Type> defm = this.scope.getFirst();
+        defm.put(name, t);
+
+        try {
+            final Type e = (Type) this.visit(ctx.e);
+            if (Type.unify(t, e, this.bounds) == null)
+                throw new RuntimeException("Illegal types for let " + name + " = " + e.getCompress(this.bounds));
+
+            // check for illegal recursive binding uses
+            new RecBindChecker().visit(ctx);
+        } catch (RuntimeException ex) {
+            // conservatively remove the binding on error
+            defm.remove(name);
+            throw ex;
+        }
+
+        // update the constraint
+        Type refined = t.expand(this.bounds);
+        final Set<VarType> poly = refined.collectVars()
+                .filter(p -> p.key.compareTo(freevar) > 0)
+                .collect(Collectors.toSet());
+
+        refined = new PolyType(poly, refined);
+        defm.put(name, refined);
+        return refined;
     }
 
     @Override

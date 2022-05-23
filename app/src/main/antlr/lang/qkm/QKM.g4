@@ -20,6 +20,7 @@ TYPE    : 'type';
 MATCH   : 'match';
 WITH    : 'with';
 FUN     : 'fun';
+LET     : 'let';
 LB      : '{';
 RB      : '}';
 LS      : '[';
@@ -56,6 +57,7 @@ lines
 
 line
     : defEnum
+    | defRecBind
     | expr
     ;
 
@@ -78,6 +80,10 @@ type
 atomType
     : n=IDENT ('[' ((ts+=type ',')* ts+=type)? ']')?    # TypeName
     | '(' ((ts+=type ',')* ts+=type)? ')'               # TypeGroup
+    ;
+
+defRecBind
+    : 'let' n=IDENT '=' e=expr
     ;
 
 expr
