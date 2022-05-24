@@ -323,6 +323,44 @@ public class App extends QKMBaseVisitor<Object> {
     }
 
     @Override
+    public Type visitExprInt(ExprIntContext ctx) {
+        return convertInt(ctx.getText()).getValue();
+    }
+
+    private static Map.Entry<BigInteger, IntType> convertInt(String lit) {
+        final int offs = lit.indexOf('i');
+        final IntType ty;
+        if (offs < 0)
+            ty = new IntType(32);
+        else if (lit.charAt(offs + 1) == '0')
+            throw new RuntimeException("Malformed integer literal");
+        else {
+            ty = new IntType(Integer.parseInt(lit.substring(offs + 1)));
+            lit = lit.substring(0, offs);
+        }
+
+        int base = 10;
+        if (lit.length() >= 2) {
+            switch (lit.charAt(1)) {
+            case 'b':
+                base = 2;
+                lit = lit.substring(2);
+                break;
+            case 'c':
+                base = 8;
+                lit = lit.substring(2);
+                break;
+            case 'x':
+                base = 16;
+                lit = lit.substring(2);
+                break;
+            }
+        }
+
+        return Map.entry(ty.signed(new BigInteger(lit.replace("_", ""))), ty);
+    }
+
+    @Override
     public Type visitExprChar(ExprCharContext ctx) {
         // make sure the literal is well formed
         final String lit = ctx.getText();
@@ -464,6 +502,12 @@ public class App extends QKMBaseVisitor<Object> {
     @Override
     public Map.Entry<Match, Type> visitPatFalse(PatFalseContext ctx) {
         return Map.entry(new MatchNode(false), BoolType.INSTANCE);
+    }
+
+    @Override
+    public Map.Entry<Match, Type> visitPatInt(PatIntContext ctx) {
+        final Map.Entry<BigInteger, IntType> pair = convertInt(ctx.getText());
+        return Map.entry(new MatchNode(pair.getKey()), pair.getValue());
     }
 
     @Override

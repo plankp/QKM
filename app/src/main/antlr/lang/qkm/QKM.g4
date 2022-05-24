@@ -41,6 +41,12 @@ fragment ESCAPE
     | '\\' DIGIT_8 DIGIT_8 DIGIT_8
     ;
 
+INT : (
+    '0b' ('_'? DIGIT_2)+
+    | '0c' ('_'? DIGIT_8)+
+    | '0x' ('_'? DIGIT_16)+
+    | '0' | [1-9] ('_'? DIGIT_10)*) ('i' DIGIT_10+)?;
+
 CHAR    : '\'' (~[\r\n'\\] | ESCAPE) '\'';
 TEXT    : '"' (~[\r\n"\\] | ESCAPE)* '"';
 
@@ -92,6 +98,7 @@ expr
     | n=IDENT                                   # ExprIdent
     | TRUE                                      # ExprTrue
     | FALSE                                     # ExprFalse
+    | INT                                       # ExprInt
     | CHAR                                      # ExprChar
     | TEXT                                      # ExprText
     | 'fun' f=matchCase                         # ExprLambda
@@ -108,6 +115,7 @@ pattern
     : '_'                                       # PatIgnore
     | TRUE                                      # PatTrue
     | FALSE                                     # PatFalse
+    | INT                                       # PatInt
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
     | id=CTOR arg=pattern?                      # PatDecons
