@@ -259,6 +259,9 @@ public class App extends QKMBaseVisitor<Object> {
     @Override
     public Type visitExprApply(ExprApplyContext ctx) {
         final Type f = (Type) this.visit(ctx.f);
+        if (ctx.arg == null)
+            return f;
+
         final Type arg = (Type) this.visit(ctx.arg);
 
         // given f   :: a -> b

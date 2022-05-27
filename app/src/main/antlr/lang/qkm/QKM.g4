@@ -93,22 +93,25 @@ defRecBind
     ;
 
 expr
-    : f=expr arg=expr                           # ExprApply
-    | k=CTOR arg=expr?                          # ExprCons
-    | n=IDENT                                   # ExprIdent
-    | TRUE                                      # ExprTrue
-    | FALSE                                     # ExprFalse
-    | INT                                       # ExprInt
-    | CHAR                                      # ExprChar
-    | TEXT                                      # ExprText
+    : f=expr0 arg=expr0?                        # ExprApply
+    | k=CTOR arg=expr0?                         # ExprCons
     | 'fun' f=matchCase                         # ExprLambda
-    | '(' ((es+=expr ',')* es+=expr)? ')'       # ExprGroup
     | 'match' i=expr 'with'
         '|'? r+=matchCase ('|' r+=matchCase)*   # ExprMatch
     ;
 
 matchCase
     : p=pattern '->' e=expr
+    ;
+
+expr0
+    : n=IDENT                                   # ExprIdent
+    | TRUE                                      # ExprTrue
+    | FALSE                                     # ExprFalse
+    | INT                                       # ExprInt
+    | CHAR                                      # ExprChar
+    | TEXT                                      # ExprText
+    | '(' ((es+=expr ',')* es+=expr)? ')'       # ExprGroup
     ;
 
 pattern
