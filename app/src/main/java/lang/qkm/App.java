@@ -63,6 +63,8 @@ public class App extends QKMBaseVisitor<Object> {
     private final LinkedList<Map<String, Type>> scope = new LinkedList<>();
     private final Map<BigInteger, Type> bounds = new HashMap<>();
 
+    private final Set<Type> fixNum = new HashSet<>();
+
     private BigInteger counter = BigInteger.ZERO;
 
     public App() {
@@ -84,6 +86,24 @@ public class App extends QKMBaseVisitor<Object> {
         for (final VarType q : p.quant)
             m.put(q, this.freshType());
         return p.base.replace(m);
+    }
+
+    private void constraintFixNum() {
+        final Iterator<Type> it = this.fixNum.iterator();
+        while (it.hasNext()) {
+            final Type t = it.next().getCompress(this.bounds);
+            if (t instanceof VarType)
+                // keep the constraint
+                continue;
+
+            if (!(t instanceof IntType)) {
+                this.fixNum.clear();
+                throw new RuntimeException("Illegal numeric constraint on " + t.expand(this.bounds));
+            }
+
+            // otherwise the constraint is on a known correct type.
+            it.remove();
+        }
     }
 
     @Override
@@ -250,6 +270,11 @@ public class App extends QKMBaseVisitor<Object> {
         final Set<VarType> poly = refined.collectVars()
                 .filter(p -> p.key.compareTo(freevar) > 0)
                 .collect(Collectors.toSet());
+        refined = this.fixNum.stream()
+                .map(p -> p.getCompress(this.bounds))
+                .distinct()
+                .filter(poly::contains)
+                .reduce(refined, (inner, k) -> new FixNum(k, inner));
 
         refined = new PolyType(poly, refined);
         defm.put(name, refined);
@@ -269,6 +294,7 @@ public class App extends QKMBaseVisitor<Object> {
         if (Type.unify(f, new FuncType(arg, res), this.bounds) == null)
             throw new RuntimeException("Illegal types for (" + f.getCompress(this.bounds) + ") " + arg.getCompress(this.bounds));
 
+        this.constraintFixNum();
         return res.expand(this.bounds);
     }
 
@@ -294,19 +320,41 @@ public class App extends QKMBaseVisitor<Object> {
         if (Type.unify(fresh, new FuncType(arg, res), this.bounds) == null)
             throw new RuntimeException("Illegal types for " + id + " " + arg);
 
+        this.constraintFixNum();
         return res.expand(this.bounds);
+    }
+
+    @Override
+    public Type visitExprAdd(ExprAddContext ctx) {
+        final Type l = (Type) this.visit(ctx.l);
+        final Type r = (Type) this.visit(ctx.r);
+
+        Type res = Type.unify(l, r, this.bounds);
+        if (res == null)
+            throw new RuntimeException("Illegal types for " + l + " + " + r);
+
+        res = res.expand(this.bounds);
+        this.fixNum.add(res);
+        this.constraintFixNum();
+        return res;
     }
 
     @Override
     public Type visitExprIdent(ExprIdentContext ctx) {
         final String name = ctx.n.getText();
         for (final Map<String, Type> depth : this.scope) {
-            final Type t = depth.get(name);
+            Type t = depth.get(name);
             if (t != null) {
-                if (!(t instanceof PolyType))
-                    return t;
+                if (t instanceof PolyType)
+                    t = this.freshType((PolyType) t);
 
-                return this.freshType((PolyType) t);
+                // fill constraints
+                while (t instanceof FixNum) {
+                    final FixNum f = (FixNum) t;
+                    this.fixNum.add(f.fix);
+                    t = f.tail;
+                }
+                return t;
             }
         }
         throw new RuntimeException("Unknown binding " + name);
@@ -460,12 +508,20 @@ public class App extends QKMBaseVisitor<Object> {
             this.scope.addFirst(depth);
 
             for (final Map.Entry<String, Type> pair : depth.entrySet()) {
-                final Type expanded = pair.getValue().expand(this.bounds);
-                final Set<VarType> poly = !generalize
-                        ? Set.of()
-                        : expanded.collectVars()
-                                .filter(p -> p.key.compareTo(freevar) > 0)
-                                .collect(Collectors.toSet());
+                Type expanded = pair.getValue().expand(this.bounds);
+                final Set<VarType> poly;
+                if (!generalize)
+                    poly = Set.of();
+                else {
+                    poly = expanded.collectVars()
+                            .filter(p -> p.key.compareTo(freevar) > 0)
+                            .collect(Collectors.toSet());
+                    expanded = this.fixNum.stream()
+                            .map(p -> p.getCompress(this.bounds))
+                            .distinct()
+                            .filter(poly::contains)
+                            .reduce(expanded, (inner, k) -> new FixNum(k, inner));
+                }
 
                 pair.setValue(new PolyType(poly, expanded));
             }

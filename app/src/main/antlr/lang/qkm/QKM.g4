@@ -28,6 +28,7 @@ RS      : ']';
 LP      : '(';
 RP      : ')';
 COMMA   : ',';
+ADD     : '+';
 
 fragment DIGIT_2    : [01];
 fragment DIGIT_8    : [0-7];
@@ -95,6 +96,7 @@ defRecBind
 expr
     : f=expr arg=expr                           # ExprApply
     | k=CTOR arg=expr?                          # ExprCons
+    | l=expr '+' r=expr                         # ExprAdd
     | n=IDENT                                   # ExprIdent
     | TRUE                                      # ExprTrue
     | FALSE                                     # ExprFalse
