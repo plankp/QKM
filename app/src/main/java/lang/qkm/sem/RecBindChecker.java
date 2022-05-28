@@ -25,17 +25,18 @@ public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
 
     @Override
     public Stream<String> visitExprApply(ExprApplyContext ctx) {
-        return Stream.concat(this.visit(ctx.f), this.visit(ctx.arg));
-    }
-
-    @Override
-    public Stream<String> visitExprCons(ExprConsContext ctx) {
-        return this.visit(ctx.arg);
+        return Stream.concat(List.of(ctx.f).stream(), ctx.args.stream())
+                .flatMap(this::visit);
     }
 
     @Override
     public Stream<String> visitExprIdent(ExprIdentContext ctx) {
         return Stream.of(ctx.n.getText());
+    }
+
+    @Override
+    public Stream<String> visitExprCtor(ExprCtorContext ctx) {
+        return Stream.empty();
     }
 
     @Override

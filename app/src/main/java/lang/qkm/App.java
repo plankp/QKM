@@ -283,48 +283,23 @@ public class App extends QKMBaseVisitor<Object> {
 
     @Override
     public Type visitExprApply(ExprApplyContext ctx) {
-        final Type f = (Type) this.visit(ctx.f);
-        if (ctx.arg == null)
-            return f;
+        Type f = (Type) this.visit(ctx.f);
 
-        final Type arg = (Type) this.visit(ctx.arg);
+        for (final Expr0Context e : ctx.args) {
+            final Type arg = (Type) this.visit(e);
 
-        // given f   :: a -> b
-        //       arg :: a
-        // return       b
+            // given f   :: a -> b
+            //       arg :: a
+            // return       b
 
-        final VarType res = this.freshType();
-        if (Type.unify(f, new FuncType(arg, res), this.bounds) == null)
-            throw new RuntimeException("Illegal types for (" + f.getCompress(this.bounds) + ") " + arg.getCompress(this.bounds));
+            final VarType res = this.freshType();
+            if (Type.unify(f, new FuncType(arg, res), this.bounds) == null)
+                throw new RuntimeException("Illegal types for (" + f.getCompress(this.bounds) + ") " + arg.getCompress(this.bounds));
 
-        this.constraintFixNum();
-        return res.expand(this.bounds);
-    }
-
-    @Override
-    public Type visitExprCons(ExprConsContext ctx) {
-        final String id = ctx.k.getText();
-        final PolyType ty = this.enumKeys.get(id);
-        if (ty == null)
-            throw new RuntimeException("Unknown enum constructor");
-
-        final Type fresh = this.freshType(ty);
-
-        // argless constructors are encoded as polytype enum.
-        if (ctx.arg == null) {
-            if (!(fresh instanceof EnumType))
-                throw new RuntimeException("Illegal type for " + id);
-            return fresh;
+            this.constraintFixNum();
+            f = res;
         }
-
-        // constructors with arguments are encoded as polytype functions.
-        final Type arg = (Type) this.visit(ctx.arg);
-        final VarType res = this.freshType();
-        if (Type.unify(fresh, new FuncType(arg, res), this.bounds) == null)
-            throw new RuntimeException("Illegal types for " + id + " " + arg);
-
-        this.constraintFixNum();
-        return res.expand(this.bounds);
+        return f.expand(this.bounds);
     }
 
     @Override
@@ -361,6 +336,16 @@ public class App extends QKMBaseVisitor<Object> {
             }
         }
         throw new RuntimeException("Unknown binding " + name);
+    }
+
+    @Override
+    public Type visitExprCtor(ExprCtorContext ctx) {
+        final String id = ctx.k.getText();
+        final PolyType ty = this.enumKeys.get(id);
+        if (ty == null)
+            throw new RuntimeException("Unknown enum constructor");
+
+        return this.freshType(ty);
     }
 
     @Override
