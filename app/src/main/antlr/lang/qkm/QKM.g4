@@ -76,14 +76,14 @@ poly
     ;
 
 enumCase
-    : k=CTOR arg=atomType?
+    : k=CTOR arg=type0?
     ;
 
 type
-    : p=atomType ('->' q=type)?     # TypeFunc
+    : p=type0 ('->' q=type)?     # TypeFunc
     ;
 
-atomType
+type0
     : n=IDENT ('[' ((ts+=type ',')* ts+=type)? ']')?    # TypeName
     | '(' ((ts+=type ',')* ts+=type)? ')'               # TypeGroup
     ;
@@ -93,8 +93,7 @@ defRecBind
     ;
 
 expr
-    : f=expr0 arg=expr0?                        # ExprApply
-    | k=CTOR arg=expr0?                         # ExprCons
+    : f=expr0 args+=expr0*                      # ExprApply
     | 'fun' f=matchCase                         # ExprLambda
     | 'match' i=expr 'with'
         '|'? r+=matchCase ('|' r+=matchCase)*   # ExprMatch
@@ -106,6 +105,7 @@ matchCase
 
 expr0
     : n=IDENT                                   # ExprIdent
+    | k=CTOR                                    # ExprCtor
     | TRUE                                      # ExprTrue
     | FALSE                                     # ExprFalse
     | INT                                       # ExprInt
