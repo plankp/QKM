@@ -1,6 +1,5 @@
 package lang.qkm.type;
 
-import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
 
@@ -15,48 +14,48 @@ public final class FuncType implements Type {
     }
 
     @Override
+    public Type get() {
+        return this;
+    }
+
+    @Override
+    public Type expand() {
+        return new FuncType(this.arg.expand(), this.ret.expand());
+    }
+
+    @Override
+    public Stream<VarType> fv() {
+        return Stream.of(this.arg, this.ret).flatMap(Type::fv);
+    }
+
+    @Override
+    public Type replace(Map<VarType, ? extends Type> map) {
+        return new FuncType(this.arg.replace(map), this.ret.replace(map));
+    }
+
+    @Override
+    public void unify(Type other) {
+        other = other.get();
+
+        if (other == this)
+            return;
+        if (other instanceof VarType) {
+            ((VarType) other).set(this);
+            return;
+        }
+
+        if (!(other instanceof FuncType))
+            throw new RuntimeException("Cannot unify " + this + " and " + other);
+
+        final FuncType func = (FuncType) other;
+        this.arg.unify(func.arg);
+        this.ret.unify(func.ret);
+    }
+
+    @Override
     public String toString() {
-        if (this.arg instanceof FuncType)
-            return "(" + this.arg + ") -> " + this.ret;
-        return this.arg + " -> " + this.ret;
-    }
-
-    @Override
-    public Stream<VarType> collectVars() {
-        return Stream.concat(this.arg.collectVars(), this.ret.collectVars());
-    }
-
-    @Override
-    public Type replace(Map<VarType, Type> m) {
-        final Type a = this.arg.replace(m);
-        final Type r = this.ret.replace(m);
-        return a == this.arg && r == this.ret
-                ? this
-                : new FuncType(a, r);
-    }
-
-    @Override
-    public Type expand(Map<BigInteger, Type> m) {
-        final Type a = this.arg.expand(m);
-        final Type r = this.ret.expand(m);
-        return a == this.arg && r == this.ret
-                ? this
-                : new FuncType(a, r);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.arg, this.ret);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this)
-            return true;
-        if (!(obj instanceof FuncType))
-            return false;
-
-        final FuncType ty = (FuncType) obj;
-        return this.arg.equals(ty.arg) && this.ret.equals(ty.ret);
+        return this.arg instanceof FuncType
+                ? "(" + this.arg + ") -> " + this.ret
+                : this.arg + " -> " + this.ret;
     }
 }

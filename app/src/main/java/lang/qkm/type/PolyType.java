@@ -1,27 +1,30 @@
 package lang.qkm.type;
 
 import java.util.*;
+import java.util.stream.*;
 
-public final class PolyType implements Type {
+public final class PolyType {
 
-    // we don't override anything type specific because polytype is weird.
+    public final List<VarType> quants;
+    public final Type body;
 
-    public final Set<VarType> quant;
-    public final Type base;
-
-    public PolyType(Set<VarType> quant, Type base) {
-        this.quant = Collections.unmodifiableSet(quant);
-        this.base = base;
+    public PolyType(List<VarType> quants, Type body) {
+        this.quants = quants;
+        this.body = body;
     }
 
     @Override
     public String toString() {
-        if (this.quant.isEmpty())
-            return this.base.toString();
+        if (this.quants.isEmpty())
+            return this.body.toString();
 
-        final StringBuilder sb = new StringBuilder();
-        for (final VarType tv : this.quant)
-            sb.append('∀').append(tv);
-        return sb.append('.').append(this.base).toString();
+        return this.quants.stream()
+                .map(Object::toString)
+                .collect(Collectors.joining(" ", "forall ", "." + this.body));
+    }
+
+    public Stream<VarType> fv() {
+        final Set<VarType> set = new HashSet<>(this.quants);
+        return this.body.fv().filter(tv -> !set.contains(tv));
     }
 }

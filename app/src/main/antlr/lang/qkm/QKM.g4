@@ -8,7 +8,6 @@ LINE_COMMENT    : '//' ~[\r\n]* -> skip;
 BLOCK_COMMENT   : '/*' (BLOCK_COMMENT | .)*? '*/' -> skip;
 WHITESPACE      : [ \t\r\n] -> skip;
 
-VAL     : 'val';
 COLON   : ':';
 TRUE    : 'true';
 FALSE   : 'false';
@@ -21,6 +20,7 @@ MATCH   : 'match';
 WITH    : 'with';
 FUN     : 'fun';
 LET     : 'let';
+IN      : 'in';
 LB      : '{';
 RB      : '}';
 LS      : '[';
@@ -62,6 +62,53 @@ lines
     ;
 
 line
+    : expr
+    ;
+
+expr
+    : f=expr0 args+=expr0*                              # ExprApply
+    | 'let' (b+=binding ',')* b+=binding 'in' e=expr    # ExprLetrec
+    | 'fun' '|'? k+=matchCase ('|' k+=matchCase)*       # ExprLambda
+    | 'match' v=expr 'with'
+        '|'? k+=matchCase ('|' k+=matchCase)*           # ExprMatch
+    ;
+
+binding
+    : n=IDENT '=' e=expr
+    ;
+
+matchCase
+    : p=pattern '->' e=expr
+    ;
+
+expr0
+    : n=IDENT                               # ExprIdent
+    | k=CTOR                                # ExprCtor
+    | TRUE                                  # ExprTrue
+    | FALSE                                 # ExprFalse
+    | INT                                   # ExprInt
+    | CHAR                                  # ExprChar
+    | TEXT                                  # ExprText
+    | '(' ((es+=expr ',')* es+=expr)? ')'   # ExprGroup
+    ;
+
+pattern
+    : pattern0
+    ;
+
+pattern0
+    : '_'                                       # PatIgnore
+    | n=IDENT                                   # PatBind
+    | TRUE                                      # PatTrue
+    | FALSE                                     # PatFalse
+    | INT                                       # PatInt
+    | CHAR                                      # PatChar
+    | TEXT                                      # PatText
+    | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
+    ;
+
+/*
+line
     : defEnum
     | defRecBind
     | expr
@@ -91,37 +138,4 @@ type0
 defRecBind
     : 'let' n=IDENT '=' e=expr
     ;
-
-expr
-    : f=expr0 args+=expr0*                      # ExprApply
-    | 'fun' f=matchCase                         # ExprLambda
-    | 'match' i=expr 'with'
-        '|'? r+=matchCase ('|' r+=matchCase)*   # ExprMatch
-    ;
-
-matchCase
-    : p=pattern '->' e=expr
-    ;
-
-expr0
-    : n=IDENT                                   # ExprIdent
-    | k=CTOR                                    # ExprCtor
-    | TRUE                                      # ExprTrue
-    | FALSE                                     # ExprFalse
-    | INT                                       # ExprInt
-    | CHAR                                      # ExprChar
-    | TEXT                                      # ExprText
-    | '(' ((es+=expr ',')* es+=expr)? ')'       # ExprGroup
-    ;
-
-pattern
-    : '_'                                       # PatIgnore
-    | TRUE                                      # PatTrue
-    | FALSE                                     # PatFalse
-    | INT                                       # PatInt
-    | CHAR                                      # PatChar
-    | TEXT                                      # PatText
-    | id=CTOR arg=pattern?                      # PatDecons
-    | n=IDENT                                   # PatBind
-    | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
-    ;
+*/

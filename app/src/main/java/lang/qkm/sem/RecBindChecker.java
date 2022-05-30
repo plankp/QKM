@@ -14,13 +14,20 @@ public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
     // let rec x = 10::x
 
     @Override
-    public Stream<String> visitDefRecBind(DefRecBindContext ctx) {
-        final String name = ctx.n.getText();
-        final Set<String> s = this.visit(ctx.e).collect(Collectors.toSet());
-        if (s.contains(name))
-            throw new RuntimeException("Illegal use of recursive binding " + name);
+    public Stream<String> visitExprLetrec(ExprLetrecContext ctx) {
+        final Set<String> names = new HashSet<>();
+        final Set<String> fvs = new HashSet<>();
+        for (final BindingContext b : ctx.b) {
+            names.add(b.n.getText());
+            this.visit(b.e).forEach(fvs::add);
+        }
 
-        return s.stream();
+        if (Collections.disjoint(names, fvs))
+            return Stream.concat(
+                    fvs.stream(),
+                    this.visit(ctx.e).filter(v -> !names.contains(v)));
+
+        throw new RuntimeException("Illegal use of recursive binding");
     }
 
     @Override
@@ -73,7 +80,7 @@ public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
 
     @Override
     public Stream<String> visitExprMatch(ExprMatchContext ctx) {
-        return Stream.concat(Stream.of(ctx.i), ctx.r.stream())
+        return Stream.concat(Stream.of(ctx.v), ctx.k.stream())
                 .flatMap(this::visit);
     }
 
@@ -89,6 +96,11 @@ public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
     }
 
     @Override
+    public Stream<String> visitPatBind(PatBindContext ctx) {
+        return Stream.of(ctx.n.getText());
+    }
+
+    @Override
     public Stream<String> visitPatTrue(PatTrueContext ctx) {
         return Stream.empty();
     }
@@ -101,16 +113,6 @@ public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
     @Override
     public Stream<String> visitPatText(PatTextContext ctx) {
         return Stream.empty();
-    }
-
-    @Override
-    public Stream<String> visitPatDecons(PatDeconsContext ctx) {
-        return ctx.arg == null ? Stream.empty() : this.visit(ctx.arg);
-    }
-
-    @Override
-    public Stream<String> visitPatBind(PatBindContext ctx) {
-        return Stream.of(ctx.n.getText());
     }
 
     @Override

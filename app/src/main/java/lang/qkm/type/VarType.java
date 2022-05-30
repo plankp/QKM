@@ -1,65 +1,79 @@
 package lang.qkm.type;
 
-import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
 
 public final class VarType implements Type {
 
-    public final BigInteger key;
+    public final String name;
 
-    public VarType(BigInteger key) {
-        this.key = key;
+    private Type ref;
+
+    public VarType(String name) {
+        this.name = name;
+    }
+
+    public void set(Type ref) {
+        if (this.ref != null)
+            throw new IllegalStateException("Illegal set on bounded type variable");
+        if (ref.fv().anyMatch(this::equals))
+            throw new IllegalStateException("Illegal recursive type");
+
+        this.ref = ref;
+    }
+
+    @Override
+    public Type get() {
+        if (this.ref == null)
+            return this;
+        if (!(this.ref instanceof VarType))
+            return this.ref;
+
+        // apply path compression
+        final VarType chain = (VarType) this.ref;
+        final Type peak = chain.get();
+        this.ref = peak;
+        return peak;
+    }
+
+    @Override
+    public Type expand() {
+        final Type peak = this.get();
+        return peak == this ? this : peak.expand();
+    }
+
+    @Override
+    public Stream<VarType> fv() {
+        final Type t = this.get();
+        return t instanceof VarType ? Stream.of((VarType) t) : t.fv();
+    }
+
+    @Override
+    public Type replace(Map<VarType, ? extends Type> map) {
+        final Type t = this.get();
+        if (!(t instanceof VarType))
+            return t.replace(map);
+
+        final Type k = map.get(t);
+        return k != null ? k : t;
+    }
+
+    @Override
+    public void unify(Type other) {
+        this.get();
+        other = other.get();
+
+        if (other == this)
+            return;
+        if (this.ref == null)
+            this.set(other);
+        else
+            this.ref.unify(other);
     }
 
     @Override
     public String toString() {
-        return "'" + this.key;
-    }
-
-    @Override
-    public Stream<VarType> collectVars() {
-        return Stream.of(this);
-    }
-
-    @Override
-    public Type replace(Map<VarType, Type> m) {
-        return m.getOrDefault(this, this);
-    }
-
-    @Override
-    public Type getCompress(Map<BigInteger, Type> m) {
-        Type t = m.get(this.key);
-        if (t == null)
-            return this;
-        if (t instanceof VarType) {
-            t = ((VarType) t).getCompress(m);
-            m.put(this.key, t);
-        }
-        return t;
-    }
-
-    @Override
-    public Type expand(Map<BigInteger, Type> m) {
-        final Type t = this.getCompress(m);
-        if (t == this)
-            return this;
-        return t.expand(m);
-    }
-
-    @Override
-    public int hashCode() {
-        return this.key.hashCode();
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this)
-            return true;
-        if (!(obj instanceof VarType))
-            return false;
-
-        final VarType ty = (VarType) obj;
-        return this.key.equals(ty.key);
+        final Type t = this.get();
+        return t instanceof VarType ? ((VarType) t).name : t.toString();
     }
 }
