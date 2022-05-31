@@ -42,8 +42,10 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             // bindings exist as monotypes in rhs of the binding declarations.
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
-                final PolyType ty = new PolyType(List.of(), this.freshType());
+                if (old.containsKey(name))
+                    throw new RuntimeException("Illegal duplicate binding " + name);;
 
+                final PolyType ty = new PolyType(List.of(), this.freshType());
                 old.put(name, this.env.put(name, ty));
             }
 
