@@ -11,13 +11,37 @@ public final class PatternChecker extends QKMBaseVisitor<Type> {
 
     private final Map<String, VarType> bindings = new HashMap<>();
     private final TypeState state;
+    private final KindChecker kindChecker;
 
-    public PatternChecker(TypeState state) {
+    public PatternChecker(TypeState state, KindChecker kindChecker) {
         this.state = state;
+        this.kindChecker = kindChecker;
     }
 
     public Map<String, VarType> getBindings() {
         return Collections.unmodifiableMap(this.bindings);
+    }
+
+    @Override
+    public Type visitPatDecons(PatDeconsContext ctx) {
+        final String ctor = ctx.k.getText();
+        final PolyType scheme = this.kindChecker.getCtor(ctor);
+        if (scheme == null)
+            throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
+
+        Type acc = this.state.inst(scheme);
+        for (final Pattern0Context arg : ctx.args) {
+            final Type v = this.visit(arg);
+            final VarType res = this.state.freshType();
+
+            acc.unify(new FuncType(v, res));
+            acc = res.get();
+        }
+
+        if (acc instanceof EnumType)
+            return acc;
+
+        throw new RuntimeException("Illegal incomplete constructor application");
     }
 
     @Override

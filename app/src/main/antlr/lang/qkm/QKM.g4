@@ -16,6 +16,8 @@ BAR     : '|';
 SET     : '=';
 ARROW   : '->';
 TYPE    : 'type';
+DATA    : 'data';
+AND     : 'and';
 MATCH   : 'match';
 WITH    : 'with';
 FUN     : 'fun';
@@ -62,12 +64,41 @@ lines
     ;
 
 line
-    : expr
+    : defType
+    | defData
+    | expr
+    ;
+
+defType
+    : 'type' n=IDENT qs+=IDENT* '=' t=type
+    ;
+
+type
+    : f=type0 args+=type0*              # TypeApply
+    |<assoc=right> p=type '->' q=type   # TypeFunc
+    ;
+
+type0
+    : n=IDENT                               # TypeName
+    | '(' ((ts+=type ',')* ts+=type)? ')'   # TypeGroup
+    ;
+
+defData
+    : 'data' d+=enumDef ('and' d+=enumDef)*
+    ;
+
+enumDef
+    : n=IDENT qs+=IDENT* '='
+        '|'? k+=enumCase ('|' k+=enumCase)*
+    ;
+
+enumCase
+    : k=CTOR args+=type0*
     ;
 
 expr
     : f=expr0 args+=expr0*                              # ExprApply
-    | 'let' (b+=binding ',')* b+=binding 'in' e=expr    # ExprLetrec
+    | 'let' (b+=binding 'and')* b+=binding 'in' e=expr  # ExprLetrec
     | 'fun' '|'? k+=matchCase ('|' k+=matchCase)*       # ExprLambda
     | 'match' v=expr 'with'
         '|'? k+=matchCase ('|' k+=matchCase)*           # ExprMatch
@@ -93,7 +124,12 @@ expr0
     ;
 
 pattern
-    : pattern0
+    : patDecons
+    | pattern0
+    ;
+
+patDecons
+    : k=CTOR args+=pattern0*
     ;
 
 pattern0
@@ -108,33 +144,6 @@ pattern0
     ;
 
 /*
-line
-    : defEnum
-    | defRecBind
-    | expr
-    ;
-
-defEnum
-    : 'type' n=IDENT p=poly? '=' '|'? r+=enumCase ('|' r+=enumCase)*
-    ;
-
-poly
-    : '[' ((qs+=IDENT ',')* qs+=IDENT)? ']'
-    ;
-
-enumCase
-    : k=CTOR arg=type0?
-    ;
-
-type
-    : p=type0 ('->' q=type)?     # TypeFunc
-    ;
-
-type0
-    : n=IDENT ('[' ((ts+=type ',')* ts+=type)? ']')?    # TypeName
-    | '(' ((ts+=type ',')* ts+=type)? ')'               # TypeGroup
-    ;
-
 defRecBind
     : 'let' n=IDENT '=' e=expr
     ;

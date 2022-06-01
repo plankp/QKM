@@ -22,6 +22,10 @@ public final class VarType implements Type {
         this.ref = ref;
     }
 
+    public boolean hasRef() {
+        return this.ref != null;
+    }
+
     @Override
     public Type get() {
         if (this.ref == null)

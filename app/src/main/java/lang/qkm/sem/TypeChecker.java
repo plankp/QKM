@@ -11,9 +11,20 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
 
     private final Map<String, PolyType> env = new HashMap<>();
     private final TypeState state = new TypeState();
+    private final KindChecker kindChecker = new KindChecker(this.state);
 
     private VarType freshType() {
         return this.state.freshType();
+    }
+
+    @Override
+    public Type visitDefType(DefTypeContext ctx) {
+        return this.kindChecker.visit(ctx).body;
+    }
+
+    @Override
+    public Type visitDefData(DefDataContext ctx) {
+        return this.kindChecker.visit(ctx).body;
     }
 
     @Override
@@ -86,7 +97,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         final Map<String, PolyType> old = new HashMap<>(this.env);
         for (final MatchCaseContext k : ctx.k) {
             try {
-                final PatternChecker p = new PatternChecker(this.state);
+                final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
                 arg.unify(p.visit(k.p));
                 for (final Map.Entry<String, VarType> pair : p.getBindings().entrySet())
                     this.env.put(pair.getKey(), new PolyType(List.of(), pair.getValue()));
@@ -115,7 +126,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         final Map<String, PolyType> old = new HashMap<>(this.env);
         for (final MatchCaseContext k : ctx.k) {
             try {
-                final PatternChecker p = new PatternChecker(this.state);
+                final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
                 v.unify(p.visit(k.p));
 
                 fv = fv.stream().flatMap(Type::fv).collect(Collectors.toSet());
@@ -147,11 +158,17 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared binding " + name);
 
-        final Map<VarType, VarType> map = new HashMap<>();
-        for (final VarType t : scheme.quants)
-            map.put(t, this.freshType());
+        return this.state.inst(scheme);
+    }
 
-        return scheme.body.replace(map);
+    @Override
+    public Type visitExprCtor(ExprCtorContext ctx) {
+        final String ctor = ctx.k.getText();
+        final PolyType scheme = this.kindChecker.getCtor(ctor);
+        if (scheme == null)
+            throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
+
+        return this.state.inst(scheme);
     }
 
     @Override
