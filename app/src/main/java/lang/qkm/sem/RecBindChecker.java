@@ -14,6 +14,21 @@ public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
     // let rec x = 10::x
 
     @Override
+    public Stream<String> visitDefBind(DefBindContext ctx) {
+        final Set<String> names = new HashSet<>();
+        final Set<String> fvs = new HashSet<>();
+        for (final BindingContext b : ctx.b) {
+            names.add(b.n.getText());
+            this.visit(b.e).forEach(fvs::add);
+        }
+
+        if (Collections.disjoint(names, fvs))
+            return fvs.stream();
+
+        throw new RuntimeException("Illegal use of recursive binding");
+    }
+
+    @Override
     public Stream<String> visitExprLetrec(ExprLetrecContext ctx) {
         final Set<String> names = new HashSet<>();
         final Set<String> fvs = new HashSet<>();

@@ -66,6 +66,7 @@ lines
 line
     : defType
     | defData
+    | defBind
     | expr
     ;
 
@@ -96,9 +97,13 @@ enumCase
     : k=CTOR args+=type0*
     ;
 
+defBind
+    : 'let' b+=binding ('and' b+=binding)*
+    ;
+
 expr
     : f=expr0 args+=expr0*                              # ExprApply
-    | 'let' (b+=binding 'and')* b+=binding 'in' e=expr  # ExprLetrec
+    | 'let' b+=binding ('and' b+=binding)* 'in' e=expr  # ExprLetrec
     | 'fun' '|'? k+=matchCase ('|' k+=matchCase)*       # ExprLambda
     | 'match' v=expr 'with'
         '|'? k+=matchCase ('|' k+=matchCase)*           # ExprMatch
@@ -142,9 +147,3 @@ pattern0
     | TEXT                                      # PatText
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
     ;
-
-/*
-defRecBind
-    : 'let' n=IDENT '=' e=expr
-    ;
-*/

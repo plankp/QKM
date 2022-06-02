@@ -28,6 +28,57 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
     }
 
     @Override
+    public Type visitDefBind(DefBindContext ctx) {
+        // collect the free variables of the current context.
+        Set<VarType> fv = this.env.values().stream()
+                .filter(k -> k != null)
+                .flatMap(PolyType::fv)
+                .collect(Collectors.toSet());
+
+        final Map<String, PolyType> old = new HashMap<>();
+        try {
+            // bindings exist as monotypes in rhs of the binding declarations.
+            for (final BindingContext b : ctx.b) {
+                final String name = b.n.getText();
+                if (old.containsKey(name))
+                    throw new RuntimeException("Illegal duplicate binding " + name);;
+
+                final PolyType ty = new PolyType(List.of(), this.freshType());
+                old.put(name, this.env.put(name, ty));
+            }
+
+            for (final BindingContext b : ctx.b) {
+                final Type k = this.env.get(b.n.getText()).body;
+                final Type t = this.visit(b.e);
+                k.unify(t);
+            }
+
+            // generalize based on the previously collected free variables.
+            fv = fv.stream().flatMap(Type::fv).collect(Collectors.toSet());
+            final Set<VarType> outer = fv;  // explicit final for Java!
+            for (final BindingContext b : ctx.b) {
+                final String name = b.n.getText();
+                final Type k = this.env.get(name).body;
+                final List<VarType> quants = k.fv()
+                        .filter(tv -> !outer.contains(tv))
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                this.env.put(name, new PolyType(quants, k));
+            }
+
+            // make sure the recursive binding is well-formed (example of
+            // something illegal is let x = x in ...)
+            new RecBindChecker().visit(ctx);
+            return this.env.get(ctx.b.get(0).n.getText()).body;
+        } catch (Throwable ex) {
+            // Only restore the environment when something goes wrong
+            this.env.putAll(old);
+            throw ex;
+        }
+    }
+
+    @Override
     public Type visitExprApply(ExprApplyContext ctx) {
         Type res = this.visit(ctx.f);
         for (final Expr0Context arg : ctx.args) {
