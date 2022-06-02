@@ -2,6 +2,7 @@ package lang.qkm.type;
 
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.match.CtorSet;
 
 public final class VarType implements Type {
 
@@ -73,6 +74,12 @@ public final class VarType implements Type {
             this.set(other);
         else
             this.ref.unify(other);
+    }
+
+    @Override
+    public CtorSet getCtorSet() {
+        final Type t = this.get();
+        return t instanceof VarType ? null : t.getCtorSet();
     }
 
     @Override

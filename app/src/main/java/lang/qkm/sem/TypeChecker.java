@@ -4,6 +4,8 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
 import lang.qkm.type.*;
+import lang.qkm.util.*;
+import lang.qkm.match.*;
 import lang.qkm.QKMBaseVisitor;
 import static lang.qkm.QKMParser.*;
 
@@ -146,10 +148,17 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         final VarType res = this.freshType();
 
         final Map<String, PolyType> old = new HashMap<>(this.env);
+        final List<SList<Match>> patterns = new LinkedList<>();
         for (final MatchCaseContext k : ctx.k) {
             try {
                 final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
-                arg.unify(p.visit(k.p));
+                final Match m = p.visit(k.p);
+                arg.unify(m.getType());
+
+                if (Match.covers(patterns, SList.of(m)))
+                    System.out.println("Useless match pattern");
+                patterns.add(SList.of(m));
+
                 for (final Map.Entry<String, VarType> pair : p.getBindings().entrySet())
                     this.env.put(pair.getKey(), new PolyType(List.of(), pair.getValue()));
 
@@ -159,6 +168,9 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                 this.env.putAll(old);
             }
         }
+
+        if (!Match.covers(patterns, SList.of(new MatchComplete(arg))))
+            System.out.println("Non-exhaustive match pattern");
 
         return new FuncType(arg, res);
     }
@@ -175,10 +187,16 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         final VarType res = this.freshType();
 
         final Map<String, PolyType> old = new HashMap<>(this.env);
+        final List<SList<Match>> patterns = new LinkedList<>();
         for (final MatchCaseContext k : ctx.k) {
             try {
                 final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
-                v.unify(p.visit(k.p));
+                final Match m = p.visit(k.p);
+                v.unify(m.getType());
+
+                if (Match.covers(patterns, SList.of(m)))
+                    System.out.println("Useless match pattern");
+                patterns.add(SList.of(m));
 
                 fv = fv.stream().flatMap(Type::fv).collect(Collectors.toSet());
                 final Set<VarType> outer = fv;
@@ -198,6 +216,9 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                 this.env.putAll(old);
             }
         }
+
+        if (!Match.covers(patterns, SList.of(new MatchComplete(v))))
+            System.out.println("Non-exhaustive match pattern");
 
         return res;
     }

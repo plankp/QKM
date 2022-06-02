@@ -2,8 +2,9 @@ package lang.qkm.type;
 
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.match.CtorSet;
 
-public final class EnumType implements Type {
+public final class EnumType implements Type, CtorSet {
 
     public static final class Template {
 
@@ -81,6 +82,11 @@ public final class EnumType implements Type {
     }
 
     @Override
+    public CtorSet getCtorSet() {
+        return this;
+    }
+
+    @Override
     public String toString() {
         if (this.args.isEmpty())
             return this.template.name;
@@ -89,5 +95,38 @@ public final class EnumType implements Type {
         for (final Type arg : this.args)
             sb.append(' ').append(arg);
         return sb.toString();
+    }
+
+    // CtorSet stuff...
+
+    @Override
+    public Optional<Boolean> sameSize(int sz) {
+        final int refsz = this.template.cases.size();
+        if (0 <= refsz && refsz < Integer.MAX_VALUE)
+            return Optional.of(sz == refsz);
+
+        // size might be capped, so use spans instead.
+        return Optional.empty();
+    }
+
+    @Override
+    public boolean spannedBy(Collection<?> c) {
+        return c.containsAll(this.template.cases.keySet());
+    }
+
+    @Override
+    public List<Type> getArgs(Object id) {
+        final List<Type> t = this.template.cases.get(id);
+        if (t.isEmpty() || this.template.quants.isEmpty())
+            return t;
+
+        final Map<VarType, Type> m = new HashMap<>();
+        final Iterator<VarType> q = this.template.quants.iterator();
+        final Iterator<? extends Type> r = this.args.iterator();
+        while (q.hasNext() && r.hasNext())
+            m.put(q.next(), r.next());
+        return t.stream()
+                .map(v -> v.replace(m))
+                .collect(Collectors.toList());
     }
 }

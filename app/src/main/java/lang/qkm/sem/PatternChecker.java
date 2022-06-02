@@ -3,11 +3,13 @@ package lang.qkm.sem;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.util.*;
 import lang.qkm.type.*;
+import lang.qkm.match.*;
 import lang.qkm.QKMBaseVisitor;
 import static lang.qkm.QKMParser.*;
 
-public final class PatternChecker extends QKMBaseVisitor<Type> {
+public final class PatternChecker extends QKMBaseVisitor<Match> {
 
     private final Map<String, VarType> bindings = new HashMap<>();
     private final TypeState state;
@@ -23,87 +25,136 @@ public final class PatternChecker extends QKMBaseVisitor<Type> {
     }
 
     @Override
-    public Type visitPatDecons(PatDeconsContext ctx) {
+    public Match visitPatDecons(PatDeconsContext ctx) {
         final String ctor = ctx.k.getText();
         final PolyType scheme = this.kindChecker.getCtor(ctor);
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
 
         Type acc = this.state.inst(scheme);
-        for (final Pattern0Context arg : ctx.args) {
-            final Type v = this.visit(arg);
-            final VarType res = this.state.freshType();
 
-            acc.unify(new FuncType(v, res));
-            acc = res.get();
+        final List<Match> args;
+        if (ctx.args.isEmpty())
+            args = List.of();
+        else {
+            args = new ArrayList<>(ctx.args.size());
+            for (final Pattern0Context arg : ctx.args) {
+                final Match m = this.visit(arg);
+                args.add(m);
+
+                final VarType res = this.state.freshType();
+                acc.unify(new FuncType(m.getType(), res));
+                acc = res.get();
+            }
         }
 
         if (acc instanceof EnumType)
-            return acc;
+            return new MatchNode(acc, ctor, args);
 
         throw new RuntimeException("Illegal incomplete constructor application");
     }
 
     @Override
-    public Type visitPatIgnore(PatIgnoreContext ctx) {
-        return this.state.freshType();
+    public Match visitPatIgnore(PatIgnoreContext ctx) {
+        return new MatchComplete(this.state.freshType());
     }
 
     @Override
-    public Type visitPatBind(PatBindContext ctx) {
+    public Match visitPatBind(PatBindContext ctx) {
         final String name = ctx.n.getText();
         final VarType typ = this.state.freshType();
         if (this.bindings.put(name, typ) != null)
             throw new RuntimeException("Illegal duplicate binding " + name + " within the same pattern");
 
-        return typ;
+        return new MatchComplete(typ);
     }
 
     @Override
-    public Type visitPatTrue(PatTrueContext ctx) {
-        return BoolType.INSTANCE;
+    public Match visitPatTrue(PatTrueContext ctx) {
+        return new MatchNode(BoolType.INSTANCE, true, List.of());
     }
 
     @Override
-    public Type visitPatFalse(PatFalseContext ctx) {
-        return BoolType.INSTANCE;
+    public Match visitPatFalse(PatFalseContext ctx) {
+        return new MatchNode(BoolType.INSTANCE, false, List.of());
     }
 
     @Override
-    public Type visitPatInt(PatIntContext ctx) {
-        final String n = ctx.getText();
-        final int k = n.indexOf('i');
-        if (k < 0)
-            return new IntType(32);
-        final String v = n.substring(k + 1);
-        if (v.charAt(0) == '0')
+    public Match visitPatInt(PatIntContext ctx) {
+        String lit = ctx.getText();
+
+        final int offs = lit.indexOf('i');
+        final IntType ty;
+        if (offs < 0)
+            ty = new IntType(32);
+        else if (lit.charAt(offs + 1) == '0')
             throw new RuntimeException("Illegal i0xxx");
-        return new IntType(Integer.parseInt(v));
+        else {
+            ty = new IntType(Integer.parseInt(lit.substring(offs + 1)));
+            lit = lit.substring(0, offs);
+        }
+
+        int base = 10;
+        if (lit.length() >= 2) {
+            switch (lit.charAt(1)) {
+            case 'b':
+                base = 2;
+                lit = lit.substring(2);
+                break;
+            case 'c':
+                base = 8;
+                lit = lit.substring(2);
+                break;
+            case 'x':
+                base = 16;
+                lit = lit.substring(2);
+                break;
+            }
+        }
+
+        final BigInteger v = ty.signed(new BigInteger(lit.replace("_", "")));
+        return new MatchNode(ty, v, List.of());
     }
 
     @Override
-    public Type visitPatChar(PatCharContext ctx) {
-        return new IntType(32);
+    public Match visitPatChar(PatCharContext ctx) {
+        final String t = ctx.getText();
+        final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
+        final int cp = encoder.next();
+
+        return new MatchNode(new IntType(32), BigInteger.valueOf(cp), List.of());
     }
 
     @Override
-    public Type visitPatText(PatTextContext ctx) {
-        return StringType.INSTANCE;
+    public Match visitPatText(PatTextContext ctx) {
+        final String t = ctx.getText();
+        if (t.length() == 2)
+            return new MatchNode(StringType.INSTANCE, "", List.of());
+
+        final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
+        final StringBuilder sb = new StringBuilder();
+        while (encoder.hasNext())
+            sb.appendCodePoint(encoder.next());
+        return new MatchNode(StringType.INSTANCE, sb.toString(), List.of());
     }
 
     @Override
-    public Type visitPatGroup(PatGroupContext ctx) {
+    public Match visitPatGroup(PatGroupContext ctx) {
         final int sz = ctx.ps.size();
         switch (sz) {
         case 0:
-            return new TupleType(List.of());
+            return new MatchNode(new TupleType(List.of()), TupleType.class, List.of());
         case 1:
             return this.visit(ctx.ps.get(0));
         default:
-            final List<Type> elements = new ArrayList<>(sz);
+            final List<Match> elements = new ArrayList<>(sz);
             for (final PatternContext e : ctx.ps)
                 elements.add(this.visit(e));
-            return new TupleType(elements);
+
+            final TupleType ty = new TupleType(elements.stream()
+                    .map(Match::getType)
+                    .collect(Collectors.toList()));
+            return new MatchNode(ty, TupleType.class, elements);
         }
     }
 }

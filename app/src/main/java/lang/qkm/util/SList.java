@@ -1,6 +1,7 @@
 package lang.qkm.util;
 
 import java.util.*;
+import java.util.stream.*;
 
 public abstract class SList<E> {
 
@@ -87,8 +88,7 @@ public abstract class SList<E> {
         return new Cons<>(data, this);
     }
 
-    public final SList<E> prependAll(Collection<E> data) {
-        final Iterator<E> it = data.iterator();
+    public final SList<E> prependAll(Iterator<? extends E> it) {
         if (!it.hasNext())
             return this;
 
@@ -101,5 +101,9 @@ public abstract class SList<E> {
         }
         acc.next = this;
         return newHead;
+    }
+
+    public final SList<E> prependAll(Collection<? extends E> data) {
+        return this.prependAll(data.iterator());
     }
 }

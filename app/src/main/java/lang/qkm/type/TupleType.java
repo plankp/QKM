@@ -2,8 +2,9 @@ package lang.qkm.type;
 
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.match.CtorSet;
 
-public final class TupleType implements Type {
+public final class TupleType implements Type, CtorSet {
 
     public final List<Type> elements;
 
@@ -71,9 +72,31 @@ public final class TupleType implements Type {
     }
 
     @Override
+    public CtorSet getCtorSet() {
+        return this;
+    }
+
+    @Override
     public String toString() {
         return this.elements.stream()
                 .map(Object::toString)
                 .collect(Collectors.joining(", ", "(", ")"));
+    }
+
+    // CtorSet stuff...
+
+    @Override
+    public Optional<Boolean> sameSize(int sz) {
+        return Optional.of(sz == 1);
+    }
+
+    @Override
+    public boolean spannedBy(Collection<?> c) {
+        return c.contains(TupleType.class);
+    }
+
+    @Override
+    public List<Type> getArgs(Object id) {
+        return this.elements;
     }
 }

@@ -2,6 +2,7 @@ package lang.qkm.type;
 
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.match.CtorSet;
 
 public interface Type {
 
@@ -14,4 +15,8 @@ public interface Type {
     public Type replace(Map<VarType, ? extends Type> map);
 
     public void unify(Type other);
+
+    public default CtorSet getCtorSet() {
+        return null;
+    }
 }
