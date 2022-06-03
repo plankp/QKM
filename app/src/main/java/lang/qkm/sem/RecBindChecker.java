@@ -5,133 +5,210 @@ import java.util.stream.*;
 import lang.qkm.QKMBaseVisitor;
 import static lang.qkm.QKMParser.*;
 
-public final class RecBindChecker extends QKMBaseVisitor<Stream<String>> {
+public final class RecBindChecker extends QKMBaseVisitor<Void> {
 
-    // implement a reduced checker where we only allow function use.
-    //
-    // there are more cases that are safe such as constructors. example is
-    // cyclic lists in ocaml:
-    // let rec x = 10::x
+    private enum Position {
+        TAIL,
+        IMMEDIATE,
+        INTERMEDIATE;
+    }
+
+    private Set<String> recBinds = new HashSet<>();
+    private Position position = Position.INTERMEDIATE;
 
     @Override
-    public Stream<String> visitDefBind(DefBindContext ctx) {
-        final Set<String> names = new HashSet<>();
-        final Set<String> fvs = new HashSet<>();
+    public Void visitDefBind(DefBindContext ctx) {
+        for (final BindingContext b : ctx.b)
+            this.recBinds.add(b.n.getText());
         for (final BindingContext b : ctx.b) {
-            names.add(b.n.getText());
-            this.visit(b.e).forEach(fvs::add);
+            this.position = Position.IMMEDIATE;
+            this.visit(b.e);
         }
 
-        if (Collections.disjoint(names, fvs))
-            return fvs.stream();
+        return null;
+    }
+
+    @Override
+    public Void visitExprLetrec(ExprLetrecContext ctx) {
+        final Position oldPosition = this.position;
+        final Set<String> oldRecBinds = this.recBinds;
+        this.recBinds = new HashSet<>(oldRecBinds);
+
+        try {
+            for (final BindingContext b : ctx.b)
+                this.recBinds.add(b.n.getText());
+            for (final BindingContext b : ctx.b) {
+                this.position = Position.IMMEDIATE;
+                this.visit(b.e);
+            }
+        } finally {
+            this.position = oldPosition;
+            this.recBinds = oldRecBinds;
+        }
+
+        this.visit(ctx.e);
+        return null;
+    }
+
+    @Override
+    public Void visitExprApply(ExprApplyContext ctx) {
+        if (ctx.args.isEmpty())
+            return this.visit(ctx.f);
+
+        final Position oldPosition = this.position;
+
+        try {
+            if (!(ctx.f instanceof ExprCtorContext)) {
+                this.position = Position.INTERMEDIATE;
+                this.visit(ctx.f);
+            } else if (this.position == Position.IMMEDIATE)
+                // promote the position to handle cyclic data:
+                // data List a = #nil | #cons a (List a)
+                // let x = #cons 1 x
+                //
+                // note that we don't handle `(#cons) 1 x` due to implicit
+                // ctor promotion to a partially applied function.
+                this.position = Position.TAIL;
+
+            for (final Expr0Context arg : ctx.args)
+                this.visit(arg);
+        } finally {
+            this.position = oldPosition;
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitExprIdent(ExprIdentContext ctx) {
+        if (!this.recBinds.contains(ctx.n.getText()))
+            return null;
+
+        // only tail position constructs can reference recursive bindings.
+        if (this.position == Position.TAIL)
+            return null;
 
         throw new RuntimeException("Illegal use of recursive binding");
     }
 
     @Override
-    public Stream<String> visitExprLetrec(ExprLetrecContext ctx) {
-        final Set<String> names = new HashSet<>();
-        final Set<String> fvs = new HashSet<>();
-        for (final BindingContext b : ctx.b) {
-            names.add(b.n.getText());
-            this.visit(b.e).forEach(fvs::add);
-        }
-
-        if (Collections.disjoint(names, fvs))
-            return Stream.concat(
-                    fvs.stream(),
-                    this.visit(ctx.e).filter(v -> !names.contains(v)));
-
-        throw new RuntimeException("Illegal use of recursive binding");
+    public Void visitExprCtor(ExprCtorContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprApply(ExprApplyContext ctx) {
-        return Stream.concat(Stream.of(ctx.f), ctx.args.stream())
-                .flatMap(this::visit);
+    public Void visitExprTrue(ExprTrueContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprIdent(ExprIdentContext ctx) {
-        return Stream.of(ctx.n.getText());
+    public Void visitExprFalse(ExprFalseContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprCtor(ExprCtorContext ctx) {
-        return Stream.empty();
+    public Void visitExprChar(ExprCharContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprTrue(ExprTrueContext ctx) {
-        return Stream.empty();
+    public Void visitExprText(ExprTextContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprFalse(ExprFalseContext ctx) {
-        return Stream.empty();
-    }
-
-    @Override
-    public Stream<String> visitExprChar(ExprCharContext ctx) {
-        return Stream.empty();
-    }
-
-    @Override
-    public Stream<String> visitExprText(ExprTextContext ctx) {
-        return Stream.empty();
-    }
-
-    @Override
-    public Stream<String> visitExprLambda(ExprLambdaContext ctx) {
+    public Void visitExprLambda(ExprLambdaContext ctx) {
         // let rec x = fun k -> e
         // e can definitely use x.
-        return Stream.empty();
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprGroup(ExprGroupContext ctx) {
-        return ctx.es.stream().flatMap(this::visit);
+    public Void visitExprGroup(ExprGroupContext ctx) {
+        if (ctx.es.size() == 1)
+            return this.visit(ctx.es.get(0));
+
+        // this is a tuple constructor, meaning it can also be cyclic (though
+        // it usually fails during type checking)
+        final Position oldPosition = this.position;
+        if (this.position == Position.IMMEDIATE)
+            this.position = Position.TAIL;
+
+        try {
+            for (final ExprContext e : ctx.es)
+                this.visit(e);
+        } finally {
+            this.position = oldPosition;
+        }
+
+        return null;
     }
 
     @Override
-    public Stream<String> visitExprMatch(ExprMatchContext ctx) {
-        return Stream.concat(Stream.of(ctx.v), ctx.k.stream())
-                .flatMap(this::visit);
+    public Void visitExprMatch(ExprMatchContext ctx) {
+        final Position oldPosition = this.position;
+
+        try {
+            this.position = Position.INTERMEDIATE;
+            this.visit(ctx.v);
+        } finally {
+            this.position = oldPosition;
+        }
+
+        for (final MatchCaseContext k : ctx.k)
+            this.visit(k);
+
+        return null;
     }
 
     @Override
-    public Stream<String> visitMatchCase(MatchCaseContext ctx) {
-        final Set<String> k = this.visit(ctx.p).collect(Collectors.toSet());
-        return this.visit(ctx.e).filter(v -> !k.contains(v));
+    public Void visitMatchCase(MatchCaseContext ctx) {
+        final Set<String> old = this.recBinds;
+        this.recBinds = new HashSet<>(old);
+
+        try {
+            this.visit(ctx.p);
+            this.visit(ctx.e);
+        } finally {
+            this.recBinds = old;
+        }
+
+        return null;
     }
 
     @Override
-    public Stream<String> visitPatIgnore(PatIgnoreContext ctx) {
-        return Stream.empty();
+    public Void visitPatIgnore(PatIgnoreContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitPatBind(PatBindContext ctx) {
-        return Stream.of(ctx.n.getText());
+    public Void visitPatBind(PatBindContext ctx) {
+        // binding gets shadowed, so whatever was there can't possibly be
+        // reference anymore.
+        this.recBinds.remove(ctx.n.getText());
+        return null;
     }
 
     @Override
-    public Stream<String> visitPatTrue(PatTrueContext ctx) {
-        return Stream.empty();
+    public Void visitPatTrue(PatTrueContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitPatChar(PatCharContext ctx) {
-        return Stream.empty();
+    public Void visitPatChar(PatCharContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitPatText(PatTextContext ctx) {
-        return Stream.empty();
+    public Void visitPatText(PatTextContext ctx) {
+        return null;
     }
 
     @Override
-    public Stream<String> visitPatGroup(PatGroupContext ctx) {
-        return ctx.ps.stream().flatMap(this::visit);
+    public Void visitPatGroup(PatGroupContext ctx) {
+        for (final PatternContext p : ctx.ps)
+            this.visit(p);
+
+        return null;
     }
 }
