@@ -30,6 +30,8 @@ RS      : ']';
 LP      : '(';
 RP      : ')';
 COMMA   : ',';
+ADD     : '+';
+SUB     : '-';
 
 fragment DIGIT_2    : [01];
 fragment DIGIT_8    : [0-7];
@@ -122,7 +124,7 @@ expr0
     | k=CTOR                                # ExprCtor
     | TRUE                                  # ExprTrue
     | FALSE                                 # ExprFalse
-    | INT                                   # ExprInt
+    | ('+' | '-')? INT                      # ExprInt
     | CHAR                                  # ExprChar
     | TEXT                                  # ExprText
     | '(' ((es+=expr ',')* es+=expr)? ')'   # ExprGroup
@@ -142,7 +144,7 @@ pattern0
     | n=IDENT                                   # PatBind
     | TRUE                                      # PatTrue
     | FALSE                                     # PatFalse
-    | INT                                       # PatInt
+    | ('+' | '-')? INT                          # PatInt
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup

@@ -94,6 +94,14 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
             lit = lit.substring(0, offs);
         }
 
+        boolean negative = false;
+        switch (lit.charAt(0)) {
+        case '-':
+            negative = true;
+        case '+':
+            lit = lit.substring(1);
+        }
+
         int base = 10;
         if (lit.length() >= 2) {
             switch (lit.charAt(1)) {
@@ -112,7 +120,11 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
             }
         }
 
-        final BigInteger v = ty.signed(new BigInteger(lit.replace("_", "")));
+        BigInteger v = new BigInteger(lit.replace("_", ""));
+        if (negative)
+            v = v.negate();
+        v = ty.signed(v);
+
         return new MatchNode(ty, v, List.of());
     }
 
