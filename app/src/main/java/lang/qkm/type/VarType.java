@@ -10,11 +10,23 @@ public final class VarType implements Type {
 
     private Type ref;
 
-    public VarType(String name) {
+    private VarType(String name) {
         this.name = name;
     }
 
+    public static VarType of(String name) {
+        return new VarType(name);
+    }
+
+    public static VarType poly(String name) {
+        final VarType t = new VarType(name);
+        t.ref = t;
+        return t;
+    }
+
     public void set(Type ref) {
+        if (this.ref == this)
+            throw new RuntimeException("Cannot unify type quantifier with less general " + ref);
         if (this.ref != null)
             throw new IllegalStateException("Illegal set on bounded type variable");
         if (ref.fv().anyMatch(this::equals))
@@ -27,9 +39,13 @@ public final class VarType implements Type {
         return this.ref != null;
     }
 
+    public boolean isPoly() {
+        return this.ref == this;
+    }
+
     @Override
     public Type get() {
-        if (this.ref == null)
+        if (this.ref == this || this.ref == null)
             return this;
         if (!(this.ref instanceof VarType))
             return this.ref;
@@ -72,8 +88,20 @@ public final class VarType implements Type {
             return;
         if (this.ref == null)
             this.set(other);
-        else
+        else if (this.ref != this)
             this.ref.unify(other);
+        else {
+            if (other instanceof VarType) {
+                final VarType v = (VarType) other;
+                if (!v.isPoly()) {
+                    v.set(this);
+                    return;
+                }
+            }
+
+            // whatever happens here must result in a less general type
+            throw new RuntimeException("Cannot unify type quantifier with less general " + other);
+        }
     }
 
     @Override

@@ -29,18 +29,26 @@ public final class KindChecker extends QKMBaseVisitor<PolyType> {
     @Override
     public PolyType visitDefType(DefTypeContext ctx) {
         final String name = ctx.n.getText();
+        final PolyType pt = this.visit(ctx.t);
+        this.env.put(name, pt);
+        return pt;
+    }
+
+    @Override
+    public PolyType visitTypePoly(TypePolyContext ctx) {
+        if (ctx.qs.isEmpty())
+            return this.visit(ctx.t);
+
         final Map<String, VarType> quants = new LinkedHashMap<>();
         for (final Token q : ctx.qs) {
             final String quant = q.getText();
-            if (quants.put(quant, this.state.freshType(quant)) != null)
+            if (quants.put(quant, this.state.freshPoly(quant)) != null)
                 throw new RuntimeException("Illegal duplicate quantifier name " + quant);
         }
 
         final Map<String, PolyType> old = new HashMap<>(this.env);
-        final VarType u = this.state.freshType();
         final List<VarType> qs = new ArrayList<>(quants.values());
         try {
-            this.env.put(name, new PolyType(qs, u));
             for (final Map.Entry<String, VarType> pair : quants.entrySet())
                 this.env.put(pair.getKey(), new PolyType(List.of(), pair.getValue()));
 
@@ -48,18 +56,11 @@ public final class KindChecker extends QKMBaseVisitor<PolyType> {
             if (!t.quants.isEmpty())
                 throw new RuntimeException("Unsupported partial application on types");
 
-            u.unify(t.body);
-            if (!u.hasRef())
-                // only possibility is if we had type a = a which is illegal
-                throw new RuntimeException("Illegal recursive type");
+            return new PolyType(qs, t.body.expand());
         } finally {
             this.env.clear();
             this.env.putAll(old);
         }
-
-        final PolyType res = new PolyType(qs, u.expand());
-        this.env.put(name, res);
-        return res;
     }
 
     @Override

@@ -11,11 +11,15 @@ public final class TypeState {
     public VarType freshType() {
         final BigInteger k = this.counter.add(BigInteger.ONE);
         this.counter = k;
-        return new VarType("'" + k);
+        return VarType.of("'" + k);
     }
 
     public VarType freshType(String name) {
-        return new VarType(name);
+        return VarType.of(name);
+    }
+
+    public VarType freshPoly(String name) {
+        return VarType.poly(name);
     }
 
     public Type inst(PolyType p) {

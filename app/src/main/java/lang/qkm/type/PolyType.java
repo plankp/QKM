@@ -20,7 +20,7 @@ public final class PolyType {
 
         return this.quants.stream()
                 .map(Object::toString)
-                .collect(Collectors.joining(" ", "forall ", "." + this.body));
+                .collect(Collectors.joining(" ", "", ". " + this.body));
     }
 
     public Stream<VarType> fv() {

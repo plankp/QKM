@@ -32,6 +32,7 @@ RP      : ')';
 COMMA   : ',';
 ADD     : '+';
 SUB     : '-';
+DOT     : '.';
 
 fragment DIGIT_2    : [01];
 fragment DIGIT_8    : [0-7];
@@ -73,7 +74,12 @@ line
     ;
 
 defType
-    : 'type' n=IDENT qs+=IDENT* '=' t=type
+    : 'type' n=IDENT '=' t=typePoly
+    ;
+
+typePoly
+    : qs+=IDENT+ '.' t=type
+    | t=type
     ;
 
 type
