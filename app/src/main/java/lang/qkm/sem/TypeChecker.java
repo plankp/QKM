@@ -39,13 +39,16 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
 
         final Map<String, PolyType> old = new HashMap<>();
         try {
-            // bindings exist as monotypes in rhs of the binding declarations.
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
                 if (old.containsKey(name))
                     throw new RuntimeException("Illegal duplicate binding " + name);;
 
-                final PolyType ty = new PolyType(List.of(), this.freshType());
+                // unless annotated, bindings exist as monotypes in rhs of the
+                // binding declarations.
+                final PolyType ty = b.t == null
+                        ? new PolyType(List.of(), this.freshType())
+                        : this.kindChecker.visit(b.t);
                 old.put(name, this.env.put(name, ty));
             }
 
@@ -103,13 +106,16 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
 
         final Map<String, PolyType> old = new HashMap<>();
         try {
-            // bindings exist as monotypes in rhs of the binding declarations.
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
                 if (old.containsKey(name))
                     throw new RuntimeException("Illegal duplicate binding " + name);;
 
-                final PolyType ty = new PolyType(List.of(), this.freshType());
+                // unless annotated, bindings exist as monotypes in rhs of the
+                // binding declarations.
+                final PolyType ty = b.t == null
+                        ? new PolyType(List.of(), this.freshType())
+                        : this.kindChecker.visit(b.t);
                 old.put(name, this.env.put(name, ty));
             }
 

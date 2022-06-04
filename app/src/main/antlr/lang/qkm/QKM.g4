@@ -118,7 +118,7 @@ expr
     ;
 
 binding
-    : n=IDENT '=' e=expr
+    : n=IDENT (':' t=typePoly)? '=' e=expr
     ;
 
 matchCase
