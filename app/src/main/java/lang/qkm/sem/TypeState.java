@@ -29,4 +29,24 @@ public final class TypeState {
 
         return p.body.replace(map);
     }
+
+    public PolyType gen(Type t, List<VarType> quants) {
+        if (quants.isEmpty())
+            return new PolyType(List.of(), t.expand());
+
+        final Iterator<VarType> it = quants.iterator();
+        final Map<VarType, VarType> m = new HashMap<>();
+        BigInteger id = null;
+        for (;;) {
+            final String name = id == null ? "t" : "t" + id;
+            m.put(it.next(), this.freshPoly(name));
+
+            if (!it.hasNext())
+                return new PolyType(
+                        Collections.unmodifiableList(new ArrayList<>(m.values())),
+                        t.replace(m));
+
+            id = id == null ? BigInteger.ONE : id.add(BigInteger.ONE);
+        }
+    }
 }

@@ -69,7 +69,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                         .distinct()
                         .collect(Collectors.toList());
 
-                this.env.put(name, new PolyType(quants, k));
+                this.env.put(name, this.state.gen(k, quants));
             }
 
             // make sure the recursive binding is well-formed (example of
@@ -136,7 +136,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                         .distinct()
                         .collect(Collectors.toList());
 
-                this.env.put(name, new PolyType(quants, k));
+                this.env.put(name, this.state.gen(k, quants));
             }
 
             // make sure the recursive binding is well-formed (example of
@@ -213,7 +213,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                             .distinct()
                             .collect(Collectors.toList());
 
-                    this.env.put(pair.getKey(), new PolyType(quants, t));
+                    this.env.put(pair.getKey(), this.state.gen(t, quants));
                 }
 
                 res.unify(this.visit(k.e));
