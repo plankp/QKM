@@ -55,12 +55,16 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         this.env.putAll(defs);
 
         try {
+            final Set<TyVar> scoped = new HashSet<>();
             for (final BindingContext b : ctx.b) {
                 final Type t = this.visit(b.e);
 
                 Type k = this.env.get(b.n.getText());
-                while (k instanceof TyPoly)
-                    k = ((TyPoly) k).body;
+                while (k instanceof TyPoly) {
+                    final TyPoly p = (TyPoly) k;
+                    scoped.add(p.arg);
+                    k = p.body;
+                }
 
                 k.unify(t);
             }
@@ -69,6 +73,10 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             final Set<TyVar> monomorphic = fv = fv.stream()
                     .flatMap(Type::fv)
                     .collect(Collectors.toSet());
+
+            for (final TyVar t : scoped)
+                if (monomorphic.contains(t))
+                    throw new RuntimeException("Illegal grounded type " + t + " would escape its scope");
 
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
@@ -133,12 +141,16 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         this.env.putAll(defs);
 
         try {
+            final Set<TyVar> scoped = new HashSet<>();
             for (final BindingContext b : ctx.b) {
                 final Type t = this.visit(b.e);
 
                 Type k = this.env.get(b.n.getText());
-                while (k instanceof TyPoly)
-                    k = ((TyPoly) k).body;
+                while (k instanceof TyPoly) {
+                    final TyPoly p = (TyPoly) k;
+                    scoped.add(p.arg);
+                    k = p.body;
+                }
 
                 k.unify(t);
             }
@@ -147,6 +159,10 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             final Set<TyVar> monomorphic = fv = fv.stream()
                     .flatMap(Type::fv)
                     .collect(Collectors.toSet());
+
+            for (final TyVar t : scoped)
+                if (monomorphic.contains(t))
+                    throw new RuntimeException("Illegal grounded type " + t + " would escape its scope");
 
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
