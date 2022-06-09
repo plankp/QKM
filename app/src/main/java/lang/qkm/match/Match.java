@@ -48,7 +48,7 @@ public interface Match {
                             final MatchNode node = (MatchNode) headRow;
                             groups.computeIfAbsent(node.id, k -> {
                                 final LinkedList<SList<Match>> initial = new LinkedList<>();
-                                final List<Type> prepends = range.getArgs(node.id);
+                                final List<? extends Type> prepends = range.getArgs(node.id);
                                 for (SList<Match> acc : groups.getOrDefault(null, List.of())) {
                                     acc = acc.prependAll(prepends.stream()
                                             .map(MatchComplete::new)

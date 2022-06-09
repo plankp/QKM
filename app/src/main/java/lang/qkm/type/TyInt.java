@@ -5,11 +5,11 @@ import java.util.*;
 import java.util.stream.*;
 import lang.qkm.match.CtorSet;
 
-public final class IntType implements Type, CtorSet {
+public final class TyInt implements Type, CtorSet {
 
     public final int bits;
 
-    public IntType(int bits) {
+    public TyInt(int bits) {
         if (bits < 1)
             throw new RuntimeException("iN type needs at least one bit");
         this.bits = bits;
@@ -32,47 +32,32 @@ public final class IntType implements Type, CtorSet {
     }
 
     @Override
-    public Type get() {
+    public Type unwrap() {
         return this;
     }
 
     @Override
-    public Type expand() {
-        return this;
+    public TyApp unapply() {
+        return null;
     }
 
     @Override
-    public Stream<VarType> fv() {
+    public Stream<TyVar> fv() {
         return Stream.empty();
     }
 
     @Override
-    public Type replace(Map<VarType, ? extends Type> map) {
-        return this;
-    }
-
-    @Override
     public void unify(Type other) {
-        other = other.get();
+        other = other.unwrap();
 
         if (this.equals(other))
             return;
-        if (other instanceof VarType) {
-            ((VarType) other).set(this);
+        if (other instanceof TyVar) {
+            ((TyVar) other).set(this);
             return;
         }
 
         throw new RuntimeException("Cannot unify " + this + " and " + other);
-    }
-
-    @Override
-    public CtorSet getCtorSet() {
-        return this;
-    }
-
-    @Override
-    public String toString() {
-        return "i" + this.bits;
     }
 
     @Override
@@ -84,14 +69,27 @@ public final class IntType implements Type, CtorSet {
     public boolean equals(Object k) {
         if (k == this)
             return true;
-        if (!(k instanceof IntType))
+        if (!(k instanceof TyInt))
             return false;
 
-        final IntType ty = (IntType) k;
+        final TyInt ty = (TyInt) k;
         return this.bits == ty.bits;
     }
 
-    // CtorSet stuff...
+    @Override
+    public Type eval(Map<TyVar, ? extends Type> env) {
+        return this;
+    }
+
+    @Override
+    public CtorSet getCtorSet() {
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "i" + this.bits;
+    }
 
     @Override
     public Optional<Boolean> sameSize(int sz) {
@@ -117,8 +115,7 @@ public final class IntType implements Type, CtorSet {
     }
 
     @Override
-    public List<Type> getArgs(Object id) {
-        // all int values do not take arguments
+    public List<? extends Type> getArgs(Object id) {
         return List.of();
     }
 }

@@ -4,42 +4,42 @@ import java.util.*;
 import java.util.stream.*;
 import lang.qkm.match.CtorSet;
 
-public enum BoolType implements Type, CtorSet {
+public enum TyBool implements Type, CtorSet {
 
     INSTANCE;
 
     @Override
-    public Type get() {
+    public Type unwrap() {
         return this;
     }
 
     @Override
-    public Type expand() {
-        return this;
+    public TyApp unapply() {
+        return null;
     }
 
     @Override
-    public Stream<VarType> fv() {
+    public Stream<TyVar> fv() {
         return Stream.empty();
     }
 
     @Override
-    public Type replace(Map<VarType, ? extends Type> map) {
-        return this;
-    }
-
-    @Override
     public void unify(Type other) {
-        other = other.get();
+        other = other.unwrap();
 
         if (other == this)
             return;
-        if (other instanceof VarType) {
-            ((VarType) other).set(this);
+        if (other instanceof TyVar) {
+            ((TyVar) other).set(this);
             return;
         }
 
         throw new RuntimeException("Cannot unify " + this + " and " + other);
+    }
+
+    @Override
+    public Type eval(Map<TyVar, ? extends Type> env) {
+        return this;
     }
 
     @Override
@@ -52,8 +52,6 @@ public enum BoolType implements Type, CtorSet {
         return "bool";
     }
 
-    // CtorSet stuff...
-
     @Override
     public Optional<Boolean> sameSize(int sz) {
         return Optional.of(sz == 2); // true and false
@@ -65,8 +63,7 @@ public enum BoolType implements Type, CtorSet {
     }
 
     @Override
-    public List<Type> getArgs(Object id) {
-        // both true and false do not take arguments
+    public List<? extends Type> getArgs(Object id) {
         return List.of();
     }
 }

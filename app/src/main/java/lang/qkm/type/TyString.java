@@ -3,42 +3,42 @@ package lang.qkm.type;
 import java.util.*;
 import java.util.stream.*;
 
-public enum StringType implements Type {
+public enum TyString implements Type {
 
     INSTANCE;
 
     @Override
-    public Type get() {
+    public Type unwrap() {
         return this;
     }
 
     @Override
-    public Type expand() {
-        return this;
+    public TyApp unapply() {
+        return null;
     }
 
     @Override
-    public Stream<VarType> fv() {
+    public Stream<TyVar> fv() {
         return Stream.empty();
     }
 
     @Override
-    public Type replace(Map<VarType, ? extends Type> map) {
-        return this;
-    }
-
-    @Override
     public void unify(Type other) {
-        other = other.get();
+        other = other.unwrap();
 
         if (other == this)
             return;
-        if (other instanceof VarType) {
-            ((VarType) other).set(this);
+        if (other instanceof TyVar) {
+            ((TyVar) other).set(this);
             return;
         }
 
         throw new RuntimeException("Cannot unify " + this + " and " + other);
+    }
+
+    @Override
+    public Type eval(Map<TyVar, ? extends Type> env) {
+        return this;
     }
 
     @Override

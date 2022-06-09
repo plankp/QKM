@@ -8,45 +8,59 @@ public final class TypeState {
 
     private BigInteger counter = BigInteger.ZERO;
 
-    public VarType freshType() {
+    public TyVar freshType() {
         final BigInteger k = this.counter.add(BigInteger.ONE);
         this.counter = k;
-        return VarType.of("'" + k);
+        return TyVar.unifiable("'" + k);
     }
 
-    public VarType freshType(String name) {
-        return VarType.of(name);
+    public TyVar freshType(String name) {
+        return TyVar.unifiable(name);
     }
 
-    public VarType freshPoly(String name) {
-        return VarType.poly(name);
+    public TyVar freshPoly(String name) {
+        return TyVar.grounded(name);
     }
 
-    public Type inst(PolyType p) {
-        final Map<VarType, VarType> map = new HashMap<>();
-        for (final VarType t : p.quants)
-            map.put(t, this.freshType());
+    public Type inst(Type p) {
+        if (!(p instanceof TyPoly))
+            // it's already instantiated
+            return p;
 
-        return p.body.replace(map);
+        final Map<TyVar, TyVar> map = new HashMap<>();
+        while (p instanceof TyPoly) {
+            final TyPoly f = (TyPoly) p;
+            map.put(f.arg, this.freshType());
+            p = f.body;
+        }
+
+        return p.eval(map);
     }
 
-    public PolyType gen(Type t, List<VarType> quants) {
+    public Type gen(Type t, List<TyVar> quants) {
         if (quants.isEmpty())
-            return new PolyType(List.of(), t.expand());
+            // nothing to generalize, just expand the type
+            return t.eval(Map.of());
 
-        final Iterator<VarType> it = quants.iterator();
-        final Map<VarType, VarType> m = new HashMap<>();
+        final Iterator<TyVar> it = quants.iterator();
+        final LinkedList<TyVar> args = new LinkedList<>();
+        final Map<TyVar, TyVar> m = new HashMap<>();
         BigInteger id = null;
         for (;;) {
             final String name = id == null ? "t" : "t" + id;
-            m.put(it.next(), this.freshPoly(name));
+            final TyVar arg = this.freshPoly(name);
+            args.push(arg);
+            m.put(it.next(), arg);
 
             if (!it.hasNext())
-                return new PolyType(
-                        Collections.unmodifiableList(new ArrayList<>(m.values())),
-                        t.replace(m));
+                break;
 
             id = id == null ? BigInteger.ONE : id.add(BigInteger.ONE);
         }
+
+        t = t.eval(m);
+        while (!args.isEmpty())
+            t = new TyPoly(args.pop(), t);
+        return t;
     }
 }

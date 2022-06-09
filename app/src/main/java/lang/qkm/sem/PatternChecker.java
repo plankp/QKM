@@ -11,7 +11,7 @@ import static lang.qkm.QKMParser.*;
 
 public final class PatternChecker extends QKMBaseVisitor<Match> {
 
-    private final Map<String, VarType> bindings = new HashMap<>();
+    private final Map<String, TyVar> bindings = new HashMap<>();
     private final TypeState state;
     private final KindChecker kindChecker;
 
@@ -20,14 +20,14 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         this.kindChecker = kindChecker;
     }
 
-    public Map<String, VarType> getBindings() {
+    public Map<String, TyVar> getBindings() {
         return Collections.unmodifiableMap(this.bindings);
     }
 
     @Override
     public Match visitPatDecons(PatDeconsContext ctx) {
         final String ctor = ctx.k.getText();
-        final PolyType scheme = this.kindChecker.getCtor(ctor);
+        final Type scheme = this.kindChecker.getCtor(ctor);
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
 
@@ -42,13 +42,13 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
                 final Match m = this.visit(arg);
                 args.add(m);
 
-                final VarType res = this.state.freshType();
-                acc.unify(new FuncType(m.getType(), res));
-                acc = res.get();
+                final TyVar res = this.state.freshType();
+                acc.unify(new TyArr(m.getType(), res));
+                acc = res.unwrap();
             }
         }
 
-        if (acc instanceof EnumType)
+        if (acc instanceof TyCtor)
             return new MatchNode(acc, ctor, args);
 
         throw new RuntimeException("Illegal incomplete constructor application");
@@ -62,7 +62,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
     @Override
     public Match visitPatBind(PatBindContext ctx) {
         final String name = ctx.n.getText();
-        final VarType typ = this.state.freshType();
+        final TyVar typ = this.state.freshType();
         if (this.bindings.put(name, typ) != null)
             throw new RuntimeException("Illegal duplicate binding " + name + " within the same pattern");
 
@@ -71,12 +71,12 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
 
     @Override
     public Match visitPatTrue(PatTrueContext ctx) {
-        return new MatchNode(BoolType.INSTANCE, true, List.of());
+        return new MatchNode(TyBool.INSTANCE, true, List.of());
     }
 
     @Override
     public Match visitPatFalse(PatFalseContext ctx) {
-        return new MatchNode(BoolType.INSTANCE, false, List.of());
+        return new MatchNode(TyBool.INSTANCE, false, List.of());
     }
 
     @Override
@@ -84,13 +84,13 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         String lit = ctx.getText();
 
         final int offs = lit.indexOf('i');
-        final IntType ty;
+        final TyInt ty;
         if (offs < 0)
-            ty = new IntType(32);
+            ty = new TyInt(32);
         else if (lit.charAt(offs + 1) == '0')
             throw new RuntimeException("Illegal i0xxx");
         else {
-            ty = new IntType(Integer.parseInt(lit.substring(offs + 1)));
+            ty = new TyInt(Integer.parseInt(lit.substring(offs + 1)));
             lit = lit.substring(0, offs);
         }
 
@@ -134,20 +134,20 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
         final int cp = encoder.next();
 
-        return new MatchNode(new IntType(32), BigInteger.valueOf(cp), List.of());
+        return new MatchNode(new TyInt(32), BigInteger.valueOf(cp), List.of());
     }
 
     @Override
     public Match visitPatText(PatTextContext ctx) {
         final String t = ctx.getText();
         if (t.length() == 2)
-            return new MatchNode(StringType.INSTANCE, "", List.of());
+            return new MatchNode(TyString.INSTANCE, "", List.of());
 
         final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
         final StringBuilder sb = new StringBuilder();
         while (encoder.hasNext())
             sb.appendCodePoint(encoder.next());
-        return new MatchNode(StringType.INSTANCE, sb.toString(), List.of());
+        return new MatchNode(TyString.INSTANCE, sb.toString(), List.of());
     }
 
     @Override
@@ -155,7 +155,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         final int sz = ctx.ps.size();
         switch (sz) {
         case 0:
-            return new MatchNode(new TupleType(List.of()), TupleType.class, List.of());
+            return new MatchNode(new TyTup(List.of()), TyTup.class, List.of());
         case 1:
             return this.visit(ctx.ps.get(0));
         default:
@@ -163,10 +163,10 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
             for (final PatternContext e : ctx.ps)
                 elements.add(this.visit(e));
 
-            final TupleType ty = new TupleType(elements.stream()
+            final TyTup ty = new TyTup(elements.stream()
                     .map(Match::getType)
                     .collect(Collectors.toList()));
-            return new MatchNode(ty, TupleType.class, elements);
+            return new MatchNode(ty, TyTup.class, elements);
         }
     }
 }

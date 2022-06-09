@@ -37,5 +37,5 @@ public interface CtorSet {
      *
      * @return types of the argument
      */
-    public List<Type> getArgs(Object id);
+    public List<? extends Type> getArgs(Object id);
 }

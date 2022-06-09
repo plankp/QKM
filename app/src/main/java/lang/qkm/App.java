@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import lang.qkm.sem.TypeChecker;
+import lang.qkm.sem.KindChecker;
 
 public class App {
 
@@ -35,7 +36,7 @@ public class App {
                 final CommonTokenStream tokens = new CommonTokenStream(new QKMLexer(stream));
                 final QKMParser parser = new QKMParser(tokens);
                 try {
-                    System.out.println(state.visit(parser.lines()).expand());
+                    System.out.println(state.visit(parser.lines()));
                 } catch (Exception ex) {
                     System.out.println("!! " + ex.getMessage());
                 }

@@ -6,15 +6,15 @@ import lang.qkm.match.CtorSet;
 
 public interface Type {
 
-    public Type get();
+    public Type unwrap();
 
-    public Type expand();
+    public TyApp unapply();
 
-    public Stream<VarType> fv();
-
-    public Type replace(Map<VarType, ? extends Type> map);
+    public Stream<TyVar> fv();
 
     public void unify(Type other);
+
+    public Type eval(Map<TyVar, ? extends Type> env);
 
     public default CtorSet getCtorSet() {
         return null;

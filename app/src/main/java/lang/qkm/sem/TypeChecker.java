@@ -11,61 +11,70 @@ import static lang.qkm.QKMParser.*;
 
 public final class TypeChecker extends QKMBaseVisitor<Type> {
 
-    private final Map<String, PolyType> env = new HashMap<>();
     private final TypeState state = new TypeState();
-    private final KindChecker kindChecker = new KindChecker(this.state);
+    private final KindChecker kindChecker = new KindChecker();
 
-    private VarType freshType() {
-        return this.state.freshType();
-    }
+    private Map<String, Type> env = new HashMap<>();
 
     @Override
     public Type visitDefType(DefTypeContext ctx) {
-        return this.kindChecker.visit(ctx).body;
+        return this.kindChecker.visit(ctx).kind;
     }
 
     @Override
     public Type visitDefData(DefDataContext ctx) {
-        return this.kindChecker.visit(ctx).body;
+        return this.kindChecker.visit(ctx).kind;
     }
 
     @Override
     public Type visitDefBind(DefBindContext ctx) {
         // collect the free variables of the current context.
-        Set<VarType> fv = this.env.values().stream()
+        Set<TyVar> fv = this.env.values().stream()
                 .filter(k -> k != null)
-                .flatMap(PolyType::fv)
+                .flatMap(Type::fv)
                 .collect(Collectors.toSet());
 
-        final Map<String, PolyType> old = new HashMap<>();
+        final Map<String, Type> defs = new HashMap<>();
+        for (final BindingContext b : ctx.b) {
+            final String name = b.n.getText();
+            if (defs.containsKey(name))
+                throw new RuntimeException("Illegal duplicate binding " + name);;
+
+            // unless annotated, bindings exist as monotypes in rhs of the
+            // binding declarations.
+            final Type ty;
+            if (b.t == null)
+                ty = this.state.freshType();
+            else
+                ty = this.kindChecker.visit(b.t).type.eval(Map.of());
+            defs.put(name, ty);
+        }
+
+        final Map<String, Type> old = this.env;
+        this.env = new HashMap<>(old);
+        this.env.putAll(defs);
+
         try {
             for (final BindingContext b : ctx.b) {
-                final String name = b.n.getText();
-                if (old.containsKey(name))
-                    throw new RuntimeException("Illegal duplicate binding " + name);;
-
-                // unless annotated, bindings exist as monotypes in rhs of the
-                // binding declarations.
-                final PolyType ty = b.t == null
-                        ? new PolyType(List.of(), this.freshType())
-                        : this.kindChecker.visit(b.t);
-                old.put(name, this.env.put(name, ty));
-            }
-
-            for (final BindingContext b : ctx.b) {
-                final Type k = this.env.get(b.n.getText()).body;
                 final Type t = this.visit(b.e);
+
+                Type k = this.env.get(b.n.getText());
+                while (k instanceof TyPoly)
+                    k = ((TyPoly) k).body;
+
                 k.unify(t);
             }
 
             // generalize based on the previously collected free variables.
-            fv = fv.stream().flatMap(Type::fv).collect(Collectors.toSet());
-            final Set<VarType> outer = fv;  // explicit final for Java!
+            final Set<TyVar> monomorphic = fv = fv.stream()
+                    .flatMap(Type::fv)
+                    .collect(Collectors.toSet());
+
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
-                final Type k = this.env.get(name).body;
-                final List<VarType> quants = k.fv()
-                        .filter(tv -> !outer.contains(tv))
+                final Type k = this.env.get(name);
+                final List<TyVar> quants = k.fv()
+                        .filter(tv -> !monomorphic.contains(tv))
                         .distinct()
                         .collect(Collectors.toList());
 
@@ -75,10 +84,9 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             // make sure the recursive binding is well-formed (example of
             // something illegal is let x = x in ...)
             new RecBindChecker().visit(ctx);
-            return this.env.get(ctx.b.get(0).n.getText()).body;
+            return this.env.get(ctx.b.get(0).n.getText());
         } catch (Throwable ex) {
-            // Only restore the environment when something goes wrong
-            this.env.putAll(old);
+            this.env = old;
             throw ex;
         }
     }
@@ -88,9 +96,9 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         Type res = this.visit(ctx.f);
         for (final Expr0Context arg : ctx.args) {
             final Type k = this.visit(arg);
-            final Type v = this.freshType();
-            res.unify(new FuncType(k, v));
-            res = v.get();
+            final Type v = this.state.freshType();
+            res.unify(new TyArr(k, v));
+            res = v.unwrap();
         }
 
         return res;
@@ -99,40 +107,52 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
     @Override
     public Type visitExprLetrec(ExprLetrecContext ctx) {
         // collect the free variables of the current context.
-        Set<VarType> fv = this.env.values().stream()
+        Set<TyVar> fv = this.env.values().stream()
                 .filter(k -> k != null)
-                .flatMap(PolyType::fv)
+                .flatMap(Type::fv)
                 .collect(Collectors.toSet());
 
-        final Map<String, PolyType> old = new HashMap<>();
+        final Map<String, Type> defs = new HashMap<>();
+        for (final BindingContext b : ctx.b) {
+            final String name = b.n.getText();
+            if (defs.containsKey(name))
+                throw new RuntimeException("Illegal duplicate binding " + name);;
+
+            // unless annotated, bindings exist as monotypes in rhs of the
+            // binding declarations.
+            final Type ty;
+            if (b.t == null)
+                ty = this.state.freshType();
+            else
+                ty = this.kindChecker.visit(b.t).type.eval(Map.of());
+            defs.put(name, ty);
+        }
+
+        final Map<String, Type> old = this.env;
+        this.env = new HashMap<>(old);
+        this.env.putAll(defs);
+
         try {
             for (final BindingContext b : ctx.b) {
-                final String name = b.n.getText();
-                if (old.containsKey(name))
-                    throw new RuntimeException("Illegal duplicate binding " + name);;
-
-                // unless annotated, bindings exist as monotypes in rhs of the
-                // binding declarations.
-                final PolyType ty = b.t == null
-                        ? new PolyType(List.of(), this.freshType())
-                        : this.kindChecker.visit(b.t);
-                old.put(name, this.env.put(name, ty));
-            }
-
-            for (final BindingContext b : ctx.b) {
-                final Type k = this.env.get(b.n.getText()).body;
                 final Type t = this.visit(b.e);
+
+                Type k = this.env.get(b.n.getText());
+                while (k instanceof TyPoly)
+                    k = ((TyPoly) k).body;
+
                 k.unify(t);
             }
 
             // generalize based on the previously collected free variables.
-            fv = fv.stream().flatMap(Type::fv).collect(Collectors.toSet());
-            final Set<VarType> outer = fv;  // explicit final for Java!
+            final Set<TyVar> monomorphic = fv = fv.stream()
+                    .flatMap(Type::fv)
+                    .collect(Collectors.toSet());
+
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
-                final Type k = this.env.get(name).body;
-                final List<VarType> quants = k.fv()
-                        .filter(tv -> !outer.contains(tv))
+                final Type k = this.env.get(name);
+                final List<TyVar> quants = k.fv()
+                        .filter(tv -> !monomorphic.contains(tv))
                         .distinct()
                         .collect(Collectors.toList());
 
@@ -144,72 +164,76 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             new RecBindChecker().visit(ctx);
             return this.visit(ctx.e);
         } finally {
-            this.env.putAll(old);
+            this.env = old;
         }
     }
 
     @Override
     public Type visitExprLambda(ExprLambdaContext ctx) {
-        final VarType arg = this.freshType();
-        final VarType res = this.freshType();
+        final TyVar arg = this.state.freshType();
+        final TyVar res = this.state.freshType();
 
-        final Map<String, PolyType> old = new HashMap<>(this.env);
+        final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
         for (final MatchCaseContext k : ctx.k) {
+            final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
+            final Match m = p.visit(k.p);
+            arg.unify(m.getType());
+
+            if (Match.covers(patterns, SList.of(m)))
+                System.out.println("Useless match pattern");
+            patterns.add(SList.of(m));
+
             try {
-                final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
-                final Match m = p.visit(k.p);
-                arg.unify(m.getType());
-
-                if (Match.covers(patterns, SList.of(m)))
-                    System.out.println("Useless match pattern");
-                patterns.add(SList.of(m));
-
-                for (final Map.Entry<String, VarType> pair : p.getBindings().entrySet())
-                    this.env.put(pair.getKey(), new PolyType(List.of(), pair.getValue()));
+                this.env = new HashMap<>(old);
+                this.env.putAll(p.getBindings());
 
                 res.unify(this.visit(k.e));
             } finally {
-                this.env.clear();
-                this.env.putAll(old);
+                this.env = old;
             }
         }
 
         if (!Match.covers(patterns, SList.of(new MatchComplete(arg))))
             System.out.println("Non-exhaustive match pattern");
 
-        return new FuncType(arg, res);
+        return new TyArr(arg, res);
     }
 
     @Override
     public Type visitExprMatch(ExprMatchContext ctx) {
         // match bindings can generalize
-        Set<VarType> fv = this.env.values().stream()
+        Set<TyVar> fv = this.env.values().stream()
                 .filter(k -> k != null)
-                .flatMap(PolyType::fv)
+                .flatMap(Type::fv)
                 .collect(Collectors.toSet());
 
         final Type v = this.visit(ctx.v);
-        final VarType res = this.freshType();
+        final TyVar res = this.state.freshType();
 
-        final Map<String, PolyType> old = new HashMap<>(this.env);
+        final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
         for (final MatchCaseContext k : ctx.k) {
+            final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
+            final Match m = p.visit(k.p);
+            v.unify(m.getType());
+
+            if (Match.covers(patterns, SList.of(m)))
+                System.out.println("Useless match pattern");
+            patterns.add(SList.of(m));
+
+            // rebuild the set of monomorphic type variables because the
+            // pattern might have introduced new ones.
+            final Set<TyVar> monomorphic = fv = fv.stream()
+                    .flatMap(Type::fv)
+                    .collect(Collectors.toSet());
+
             try {
-                final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
-                final Match m = p.visit(k.p);
-                v.unify(m.getType());
-
-                if (Match.covers(patterns, SList.of(m)))
-                    System.out.println("Useless match pattern");
-                patterns.add(SList.of(m));
-
-                fv = fv.stream().flatMap(Type::fv).collect(Collectors.toSet());
-                final Set<VarType> outer = fv;
-                for (final Map.Entry<String, VarType> pair : p.getBindings().entrySet()) {
+                this.env = new HashMap<>(old);
+                for (final Map.Entry<String, TyVar> pair : p.getBindings().entrySet()) {
                     final Type t = pair.getValue();
-                    final List<VarType> quants = t.fv()
-                            .filter(tv -> !outer.contains(tv))
+                    final List<TyVar> quants = t.fv()
+                            .filter(tv -> !monomorphic.contains(tv))
                             .distinct()
                             .collect(Collectors.toList());
 
@@ -218,8 +242,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
 
                 res.unify(this.visit(k.e));
             } finally {
-                this.env.clear();
-                this.env.putAll(old);
+                this.env = old;
             }
         }
 
@@ -232,7 +255,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
     @Override
     public Type visitExprIdent(ExprIdentContext ctx) {
         final String name = ctx.n.getText();
-        final PolyType scheme = this.env.get(name);
+        final Type scheme = this.env.get(name);
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared binding " + name);
 
@@ -242,7 +265,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
     @Override
     public Type visitExprCtor(ExprCtorContext ctx) {
         final String ctor = ctx.k.getText();
-        final PolyType scheme = this.kindChecker.getCtor(ctor);
+        final Type scheme = this.kindChecker.getCtor(ctor);
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
 
@@ -251,12 +274,12 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
 
     @Override
     public Type visitExprTrue(ExprTrueContext ctx) {
-        return BoolType.INSTANCE;
+        return TyBool.INSTANCE;
     }
 
     @Override
     public Type visitExprFalse(ExprFalseContext ctx) {
-        return BoolType.INSTANCE;
+        return TyBool.INSTANCE;
     }
 
     @Override
@@ -264,36 +287,38 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         final String n = ctx.getText();
         final int k = n.indexOf('i');
         if (k < 0)
-            return new IntType(32);
+            return new TyInt(32);
         final String v = n.substring(k + 1);
         if (v.charAt(0) == '0')
             throw new RuntimeException("Illegal i0xxx");
-        return new IntType(Integer.parseInt(v));
+        return new TyInt(Integer.parseInt(v));
     }
 
     @Override
     public Type visitExprChar(ExprCharContext ctx) {
-        return new IntType(32);
+        // TODO: want to make char a distinct variant type over all valid code
+        // points, meaning surrogate pair values are illegal.
+        return new TyInt(32);
     }
 
     @Override
     public Type visitExprText(ExprTextContext ctx) {
-        return StringType.INSTANCE;
+        return TyString.INSTANCE;
     }
 
     @Override
     public Type visitExprGroup(ExprGroupContext ctx) {
         final int sz = ctx.es.size();
         switch (sz) {
-        case 0:
-            return new TupleType(List.of());
         case 1:
             return this.visit(ctx.es.get(0));
+        case 0:
+            return new TyTup(List.of());
         default:
             final List<Type> elements = new ArrayList<>(sz);
             for (final ExprContext e : ctx.es)
                 elements.add(this.visit(e));
-            return new TupleType(elements);
+            return new TyTup(elements);
         }
     }
 }
