@@ -42,7 +42,7 @@ public final class TyCtor implements Type, CtorSet {
                 .map(p -> new TyVar())
                 .collect(Collectors.toList());
 
-        Type base = new TyTup(Collections.unmodifiableList(exp));
+        Type base = new TyCtor(this.template, Collections.unmodifiableList(exp));
         for (int i = exp.size(); i-- > 0; )
             base = new TyPoly(exp.get(i), base);
         for (final Type arg : this.args)
