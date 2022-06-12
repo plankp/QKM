@@ -6,11 +6,16 @@ import java.util.stream.*;
 public final class ECtor implements Expr {
 
     public final String id;
-    public final List<Expr> args;
+    public final List<? extends Expr> args;
 
-    public ECtor(String id, List<Expr> args) {
+    public ECtor(String id, List<? extends Expr> args) {
         this.id = id;
         this.args = args;
+    }
+
+    @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitECtor(this);
     }
 
     @Override

@@ -12,6 +12,11 @@ public final class EString implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitEString(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return Stream.empty();
     }

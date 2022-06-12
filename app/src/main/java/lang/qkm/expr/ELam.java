@@ -14,6 +14,11 @@ public final class ELam implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitELam(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return this.body.fv().filter(v -> !v.equals(this.arg));
     }

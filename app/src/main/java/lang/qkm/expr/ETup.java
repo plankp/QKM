@@ -12,6 +12,11 @@ public final class ETup implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitETup(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return this.elements.stream().flatMap(Expr::fv);
     }

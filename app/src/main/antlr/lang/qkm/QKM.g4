@@ -70,7 +70,7 @@ line
     : defType
     | defData
     | defBind
-    | expr
+    | topExpr
     ;
 
 defType
@@ -107,6 +107,10 @@ enumCase
 
 defBind
     : 'let' b+=binding ('and' b+=binding)*
+    ;
+
+topExpr
+    : e=expr
     ;
 
 expr

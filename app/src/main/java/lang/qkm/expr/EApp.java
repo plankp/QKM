@@ -14,6 +14,11 @@ public final class EApp implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitEApp(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return Stream.concat(this.f.fv(), this.arg.fv());
     }

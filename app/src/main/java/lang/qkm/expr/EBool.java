@@ -12,6 +12,11 @@ public final class EBool implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitEBool(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return Stream.empty();
     }

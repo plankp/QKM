@@ -16,6 +16,11 @@ public final class EInt implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitEInt(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return Stream.empty();
     }

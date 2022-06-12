@@ -12,6 +12,11 @@ public final class EVar implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitEVar(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return Stream.of(this);
     }

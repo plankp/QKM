@@ -15,6 +15,11 @@ public final class EMatch implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitEMatch(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         return Stream.concat(
                 this.scrutinee.fv(),

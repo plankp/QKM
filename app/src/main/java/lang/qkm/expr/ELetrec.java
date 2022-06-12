@@ -14,6 +14,11 @@ public final class ELetrec implements Expr {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitELetrec(this);
+    }
+
+    @Override
     public Stream<EVar> fv() {
         if (this.binds.isEmpty())
             return this.body.fv();

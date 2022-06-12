@@ -3,6 +3,7 @@ package lang.qkm.sem;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.eval.Evaluator;
 import lang.qkm.expr.*;
 import lang.qkm.type.*;
 import lang.qkm.util.*;
@@ -30,8 +31,13 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
     private final TypeState state = new TypeState();
     private final KindChecker kindChecker = new KindChecker();
+    private final Evaluator exec;
 
     private Map<String, Type> env = new HashMap<>();
+
+    public ExprChecker(Evaluator exec) {
+        this.exec = exec;
+    }
 
     @Override
     public Result visitDefType(DefTypeContext ctx) {
@@ -114,11 +120,19 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             // make sure the recursive binding is well-formed (example of
             // something illegal is let x = x in ...)
             new RecBindChecker().visit(ctx);
+            this.exec.define(bindings);
             return null;
         } catch (Throwable ex) {
             this.env = old;
             throw ex;
         }
+    }
+
+    @Override
+    public Result visitTopExpr(TopExprContext ctx) {
+        final Result r = this.visit(ctx.e);
+        this.exec.eval(r.expr);
+        return null;
     }
 
     @Override
@@ -324,7 +338,23 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
 
-        return new Result(new EVar(ctor), this.state.inst(scheme));
+        final Type t = this.state.inst(scheme);
+        if (t instanceof TyCtor)
+            return new Result(new ECtor(ctor, List.of()), t);
+
+        final List<EVar> args = new ArrayList<>();
+        Type v = t;
+        long id = 0;
+        while (!(v instanceof TyCtor)) {
+            final TyArr f = (TyArr) v;
+            args.add(new EVar("`" + ++id));
+            v = f.ret;
+        }
+
+        Expr f = new ECtor(ctor, args);
+        for (int i = args.size(); i-- > 0; )
+            f = new ELam(args.get(i), f);
+        return new Result(f, t);
     }
 
     @Override
