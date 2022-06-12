@@ -10,6 +10,8 @@ public interface Match {
 
     public Type getType();
 
+    public Stream<String> getCaptures();
+
     public static boolean covers(List<SList<Match>> ps, SList<Match> qs) {
         // based on http://moscova.inria.fr/~maranget/papers/warn/index.html
         tailcall:
@@ -40,7 +42,7 @@ public interface Match {
                                 SList<Match> acc = row.tail();
                                 if (ctor != null)
                                     acc = acc.prependAll(range.getArgs(ctor).stream()
-                                            .map(MatchComplete::new)
+                                            .map(MatchComplete::wildcard)
                                             .iterator());
                                 pair.getValue().add(acc);
                             }
@@ -51,7 +53,7 @@ public interface Match {
                                 final List<? extends Type> prepends = range.getArgs(node.id);
                                 for (SList<Match> acc : groups.getOrDefault(null, List.of())) {
                                     acc = acc.prependAll(prepends.stream()
-                                            .map(MatchComplete::new)
+                                            .map(MatchComplete::wildcard)
                                             .iterator());
                                     initial.add(acc);
                                 }
@@ -90,7 +92,7 @@ public interface Match {
                         final Object ctor = pair.getKey();
                         if (ctor != null)
                             qs = qs.prependAll(range.getArgs(ctor).stream()
-                                    .map(MatchComplete::new)
+                                    .map(MatchComplete::wildcard)
                                     .iterator());
 
                         if (!ctors.hasNext())

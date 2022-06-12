@@ -3,13 +3,30 @@ package lang.qkm.sem;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.expr.*;
 import lang.qkm.type.*;
 import lang.qkm.util.*;
 import lang.qkm.match.*;
 import lang.qkm.QKMBaseVisitor;
 import static lang.qkm.QKMParser.*;
 
-public final class TypeChecker extends QKMBaseVisitor<Type> {
+public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
+
+    public static final class Result {
+
+        public final Expr expr;
+        public final Type type;
+
+        public Result(Expr expr, Type type) {
+            this.expr = expr;
+            this.type = type;
+        }
+
+        @Override
+        public String toString() {
+            return this.expr + " :: " + this.type;
+        }
+    }
 
     private final TypeState state = new TypeState();
     private final KindChecker kindChecker = new KindChecker();
@@ -17,17 +34,19 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
     private Map<String, Type> env = new HashMap<>();
 
     @Override
-    public Type visitDefType(DefTypeContext ctx) {
-        return this.kindChecker.visit(ctx).kind;
+    public Result visitDefType(DefTypeContext ctx) {
+        this.kindChecker.visit(ctx);
+        return null;
     }
 
     @Override
-    public Type visitDefData(DefDataContext ctx) {
-        return this.kindChecker.visit(ctx).kind;
+    public Result visitDefData(DefDataContext ctx) {
+        this.kindChecker.visit(ctx);
+        return null;
     }
 
     @Override
-    public Type visitDefBind(DefBindContext ctx) {
+    public Result visitDefBind(DefBindContext ctx) {
         // collect the free variables of the current context.
         Set<TyVar> fv = this.env.values().stream()
                 .filter(k -> k != null)
@@ -38,7 +57,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         for (final BindingContext b : ctx.b) {
             final String name = b.n.getText();
             if (defs.containsKey(name))
-                throw new RuntimeException("Illegal duplicate binding " + name);;
+                throw new RuntimeException("Illegal duplicate binding " + name);
 
             // unless annotated, bindings exist as monotypes in rhs of the
             // binding declarations.
@@ -55,18 +74,21 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         this.env.putAll(defs);
 
         try {
+            final Map<EVar, Expr> bindings = new HashMap<>();
             final Set<TyVar> scoped = new HashSet<>();
             for (final BindingContext b : ctx.b) {
-                final Type t = this.visit(b.e);
+                final String name = b.n.getText();
+                final Result t = this.visit(b.e);
+                bindings.put(new EVar(name), t.expr);
 
-                Type k = this.env.get(b.n.getText());
+                Type k = this.env.get(name);
                 while (k instanceof TyPoly) {
                     final TyPoly p = (TyPoly) k;
                     scoped.add(p.arg);
                     k = p.body;
                 }
 
-                k.unify(t);
+                k.unify(t.type);
             }
 
             // generalize based on the previously collected free variables.
@@ -92,7 +114,7 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             // make sure the recursive binding is well-formed (example of
             // something illegal is let x = x in ...)
             new RecBindChecker().visit(ctx);
-            return this.env.get(ctx.b.get(0).n.getText());
+            return null;
         } catch (Throwable ex) {
             this.env = old;
             throw ex;
@@ -100,20 +122,21 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
     }
 
     @Override
-    public Type visitExprApply(ExprApplyContext ctx) {
-        Type res = this.visit(ctx.f);
+    public Result visitExprApply(ExprApplyContext ctx) {
+        Result res = this.visit(ctx.f);
         for (final Expr0Context arg : ctx.args) {
-            final Type k = this.visit(arg);
+            final Result k = this.visit(arg);
             final Type v = this.state.freshType();
-            res.unify(new TyArr(k, v));
-            res = v.unwrap();
+
+            res.type.unify(new TyArr(k.type, v));
+            res = new Result(new EApp(res.expr, k.expr), v.unwrap());
         }
 
         return res;
     }
 
     @Override
-    public Type visitExprLetrec(ExprLetrecContext ctx) {
+    public Result visitExprLetrec(ExprLetrecContext ctx) {
         // collect the free variables of the current context.
         Set<TyVar> fv = this.env.values().stream()
                 .filter(k -> k != null)
@@ -141,18 +164,21 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         this.env.putAll(defs);
 
         try {
+            final Map<EVar, Expr> bindings = new HashMap<>();
             final Set<TyVar> scoped = new HashSet<>();
             for (final BindingContext b : ctx.b) {
-                final Type t = this.visit(b.e);
+                final String name = b.n.getText();
+                final Result t = this.visit(b.e);
+                bindings.put(new EVar(name), t.expr);
 
-                Type k = this.env.get(b.n.getText());
+                Type k = this.env.get(name);
                 while (k instanceof TyPoly) {
                     final TyPoly p = (TyPoly) k;
                     scoped.add(p.arg);
                     k = p.body;
                 }
 
-                k.unify(t);
+                k.unify(t.type);
             }
 
             // generalize based on the previously collected free variables.
@@ -178,19 +204,26 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
             // make sure the recursive binding is well-formed (example of
             // something illegal is let x = x in ...)
             new RecBindChecker().visit(ctx);
-            return this.visit(ctx.e);
+            final Result r = this.visit(ctx.e);
+            return new Result(new ELetrec(bindings, r.expr), r.type);
         } finally {
             this.env = old;
         }
     }
 
     @Override
-    public Type visitExprLambda(ExprLambdaContext ctx) {
+    public Result visitExprLambda(ExprLambdaContext ctx) {
         final TyVar arg = this.state.freshType();
         final TyVar res = this.state.freshType();
 
+        // (fun p1 -> e1 | p2 -> e2 | ...) is desugared as follows:
+        // (\k. (match k (p1 e1) (p2 e2) ...))
+        // where k is unique, but because shadowing rules are applied, so any
+        // name that cannot exist in the source language will work
+        final EVar desugared = new EVar("`1");
         final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
+        final List<Map.Entry<Match, Expr>> cases = new ArrayList<>(ctx.k.size());
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
             final Match m = p.visit(k.p);
@@ -204,7 +237,9 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                 this.env = new HashMap<>(old);
                 this.env.putAll(p.getBindings());
 
-                res.unify(this.visit(k.e));
+                final Result e = this.visit(k.e);
+                res.unify(e.type);
+                cases.add(Map.entry(m, e.expr));
             } finally {
                 this.env = old;
             }
@@ -213,26 +248,28 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
         if (!Match.covers(patterns, SList.of(MatchComplete.wildcard(arg))))
             System.out.println("Non-exhaustive match pattern");
 
-        return new TyArr(arg, res);
+        return new Result(new ELam(desugared, new EMatch(desugared, cases)),
+                          new TyArr(arg, res));
     }
 
     @Override
-    public Type visitExprMatch(ExprMatchContext ctx) {
+    public Result visitExprMatch(ExprMatchContext ctx) {
         // match bindings can generalize
         Set<TyVar> fv = this.env.values().stream()
                 .filter(k -> k != null)
                 .flatMap(Type::fv)
                 .collect(Collectors.toSet());
 
-        final Type v = this.visit(ctx.v);
+        final Result v = this.visit(ctx.v);
         final TyVar res = this.state.freshType();
 
         final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
+        final List<Map.Entry<Match, Expr>> cases = new ArrayList<>(ctx.k.size());
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
             final Match m = p.visit(k.p);
-            v.unify(m.getType());
+            v.type.unify(m.getType());
 
             if (Match.covers(patterns, SList.of(m)))
                 System.out.println("Useless match pattern");
@@ -256,85 +293,143 @@ public final class TypeChecker extends QKMBaseVisitor<Type> {
                     this.env.put(pair.getKey(), this.state.gen(t, quants));
                 }
 
-                res.unify(this.visit(k.e));
+                final Result e = this.visit(k.e);
+                res.unify(e.type);
+                cases.add(Map.entry(m, e.expr));
             } finally {
                 this.env = old;
             }
         }
 
-        if (!Match.covers(patterns, SList.of(MatchComplete.wildcard(v))))
+        if (!Match.covers(patterns, SList.of(MatchComplete.wildcard(v.type))))
             System.out.println("Non-exhaustive match pattern");
 
-        return res;
+        return new Result(new EMatch(v.expr, cases), res);
     }
 
     @Override
-    public Type visitExprIdent(ExprIdentContext ctx) {
+    public Result visitExprIdent(ExprIdentContext ctx) {
         final String name = ctx.n.getText();
         final Type scheme = this.env.get(name);
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared binding " + name);
 
-        return this.state.inst(scheme);
+        return new Result(new EVar(name), this.state.inst(scheme));
     }
 
     @Override
-    public Type visitExprCtor(ExprCtorContext ctx) {
+    public Result visitExprCtor(ExprCtorContext ctx) {
         final String ctor = ctx.k.getText();
         final Type scheme = this.kindChecker.getCtor(ctor);
         if (scheme == null)
             throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
 
-        return this.state.inst(scheme);
+        return new Result(new EVar(ctor), this.state.inst(scheme));
     }
 
     @Override
-    public Type visitExprTrue(ExprTrueContext ctx) {
-        return TyBool.INSTANCE;
+    public Result visitExprTrue(ExprTrueContext ctx) {
+        return new Result(new EBool(true), TyBool.INSTANCE);
     }
 
     @Override
-    public Type visitExprFalse(ExprFalseContext ctx) {
-        return TyBool.INSTANCE;
+    public Result visitExprFalse(ExprFalseContext ctx) {
+        return new Result(new EBool(false), TyBool.INSTANCE);
     }
 
     @Override
-    public Type visitExprInt(ExprIntContext ctx) {
-        final String n = ctx.getText();
-        final int k = n.indexOf('i');
-        if (k < 0)
-            return new TyInt(32);
-        final String v = n.substring(k + 1);
-        if (v.charAt(0) == '0')
+    public Result visitExprInt(ExprIntContext ctx) {
+        String lit = ctx.getText();
+
+        final int offs = lit.indexOf('i');
+        final TyInt ty;
+        if (offs < 0)
+            ty = new TyInt(32);
+        else if (lit.charAt(offs + 1) == '0')
             throw new RuntimeException("Illegal i0xxx");
-        return new TyInt(Integer.parseInt(v));
+        else {
+            ty = new TyInt(Integer.parseInt(lit.substring(offs + 1)));
+            lit = lit.substring(0, offs);
+        }
+
+        boolean negative = false;
+        switch (lit.charAt(0)) {
+        case '-':
+            negative = true;
+        case '+':
+            lit = lit.substring(1);
+        }
+
+        int base = 10;
+        if (lit.length() >= 2) {
+            switch (lit.charAt(1)) {
+            case 'b':
+                base = 2;
+                lit = lit.substring(2);
+                break;
+            case 'c':
+                base = 8;
+                lit = lit.substring(2);
+                break;
+            case 'x':
+                base = 16;
+                lit = lit.substring(2);
+                break;
+            }
+        }
+
+        BigInteger v = new BigInteger(lit.replace("_", ""));
+        if (negative)
+            v = v.negate();
+        v = ty.signed(v);
+
+        return new Result(new EInt(v, ty), ty);
     }
 
     @Override
-    public Type visitExprChar(ExprCharContext ctx) {
+    public Result visitExprChar(ExprCharContext ctx) {
         // TODO: want to make char a distinct variant type over all valid code
         // points, meaning surrogate pair values are illegal.
-        return new TyInt(32);
+
+        final String t = ctx.getText();
+        final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
+        final int cp = encoder.next();
+
+        final TyInt ty = new TyInt(32);
+        return new Result(new EInt(BigInteger.valueOf(cp), ty), ty);
     }
 
     @Override
-    public Type visitExprText(ExprTextContext ctx) {
-        return TyString.INSTANCE;
+    public Result visitExprText(ExprTextContext ctx) {
+        final String t = ctx.getText();
+        if (t.length() == 2)
+            return new Result(new EString(""), TyString.INSTANCE);
+
+        final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
+        final StringBuilder sb = new StringBuilder();
+        while (encoder.hasNext())
+            sb.appendCodePoint(encoder.next());
+        return new Result(new EString(sb.toString()), TyString.INSTANCE);
     }
 
     @Override
-    public Type visitExprGroup(ExprGroupContext ctx) {
+    public Result visitExprGroup(ExprGroupContext ctx) {
         final int sz = ctx.es.size();
         switch (sz) {
         case 1:
             return this.visit(ctx.es.get(0));
         case 0:
-            return new TyTup(List.of());
+            return new Result(new ETup(List.of()), new TyTup(List.of()));
         default:
-            final List<Type> elements = new ArrayList<>(sz);
-            for (final ExprContext e : ctx.es)
-                elements.add(this.visit(e));
-            return new TyTup(elements);
+            final List<Expr> values = new ArrayList<>(sz);
+            final List<Type> types = new ArrayList<>(sz);
+            for (final ExprContext e : ctx.es) {
+                final Result r = this.visit(e);
+                values.add(r.expr);
+                types.add(r.type);
+            }
+
+            return new Result(new ETup(values), new TyTup(types));
         }
     }
 }

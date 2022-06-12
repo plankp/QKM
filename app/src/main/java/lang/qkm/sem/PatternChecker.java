@@ -56,7 +56,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
 
     @Override
     public Match visitPatIgnore(PatIgnoreContext ctx) {
-        return new MatchComplete(this.state.freshType());
+        return MatchComplete.wildcard(this.state.freshType());
     }
 
     @Override
@@ -66,7 +66,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         if (this.bindings.put(name, typ) != null)
             throw new RuntimeException("Illegal duplicate binding " + name + " within the same pattern");
 
-        return new MatchComplete(typ);
+        return new MatchComplete(name, typ);
     }
 
     @Override

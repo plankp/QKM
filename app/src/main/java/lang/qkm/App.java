@@ -6,13 +6,14 @@ import java.io.InputStreamReader;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import lang.qkm.sem.ExprChecker;
 import lang.qkm.sem.TypeChecker;
 import lang.qkm.sem.KindChecker;
 
 public class App {
 
     public static void main(String[] args) {
-        final TypeChecker state = new TypeChecker();
+        final ExprChecker state = new ExprChecker();
 
         try (final BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
             StringBuilder buffer = new StringBuilder();
@@ -36,7 +37,9 @@ public class App {
                 final CommonTokenStream tokens = new CommonTokenStream(new QKMLexer(stream));
                 final QKMParser parser = new QKMParser(tokens);
                 try {
-                    System.out.println(state.visit(parser.lines()));
+                    final Object k = state.visit(parser.lines());
+                    if (k != null)
+                        System.out.println(k);
                 } catch (Exception ex) {
                     System.out.println("!! " + ex.getMessage());
                 }

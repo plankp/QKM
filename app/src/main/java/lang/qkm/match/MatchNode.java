@@ -1,6 +1,7 @@
 package lang.qkm.match;
 
 import java.util.*;
+import java.util.stream.*;
 import lang.qkm.type.Type;
 
 public final class MatchNode implements Match {
@@ -17,6 +18,11 @@ public final class MatchNode implements Match {
         this.type = type;
         this.id = id;
         this.args = args;
+    }
+
+    @Override
+    public Stream<String> getCaptures() {
+        return this.args.stream().flatMap(Match::getCaptures);
     }
 
     @Override
