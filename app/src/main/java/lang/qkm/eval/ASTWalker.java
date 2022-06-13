@@ -2,7 +2,6 @@ package lang.qkm.eval;
 
 import java.util.*;
 import java.util.stream.*;
-import lang.qkm.type.TyTup; // TODO: specialize match classes to remove this
 import lang.qkm.expr.*;
 import lang.qkm.match.*;
 
@@ -65,18 +64,15 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
         @Override
         public boolean unpack(Match m, Map<EVar, Value> env) {
             // match must be either a complete match or a decons pattern
-            if (m instanceof MatchComplete) {
-                final MatchComplete k = (MatchComplete) m;
+            if (m instanceof MatchAll) {
+                final MatchAll k = (MatchAll) m;
                 if (k.capture != null)
                     env.put(new EVar(k.capture), this);
                 return true;
             }
 
-            if (m instanceof MatchNode) {
-                final MatchNode n = (MatchNode) m;
-                if (n.id.equals(this.value) && n.args.isEmpty())
-                    return true;
-            }
+            if (m instanceof MatchBool)
+                return this.value == ((MatchBool) m).value;
 
             return false;
         }
@@ -98,18 +94,15 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
         @Override
         public boolean unpack(Match m, Map<EVar, Value> env) {
             // match must be either a complete match or a decons pattern
-            if (m instanceof MatchComplete) {
-                final MatchComplete k = (MatchComplete) m;
+            if (m instanceof MatchAll) {
+                final MatchAll k = (MatchAll) m;
                 if (k.capture != null)
                     env.put(new EVar(k.capture), this);
                 return true;
             }
 
-            if (m instanceof MatchNode) {
-                final MatchNode n = (MatchNode) m;
-                if (n.id.equals(this.value) && n.args.isEmpty())
-                    return true;
-            }
+            if (m instanceof MatchString)
+                return this.value.equals(((MatchString) m).value);
 
             return false;
         }
@@ -131,18 +124,15 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
         @Override
         public boolean unpack(Match m, Map<EVar, Value> env) {
             // match must be either a complete match or a decons pattern
-            if (m instanceof MatchComplete) {
-                final MatchComplete k = (MatchComplete) m;
+            if (m instanceof MatchAll) {
+                final MatchAll k = (MatchAll) m;
                 if (k.capture != null)
                     env.put(new EVar(k.capture), this);
                 return true;
             }
 
-            if (m instanceof MatchNode) {
-                final MatchNode n = (MatchNode) m;
-                if (n.id.equals(this.value.value) && n.args.isEmpty())
-                    return true;
-            }
+            if (m instanceof MatchInt)
+                return this.value.value.equals(((MatchInt) m).value);
 
             return false;
         }
@@ -164,24 +154,22 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
         @Override
         public boolean unpack(Match m, Map<EVar, Value> env) {
             // match must be either a complete match or a decons pattern
-            if (m instanceof MatchComplete) {
-                final MatchComplete k = (MatchComplete) m;
+            if (m instanceof MatchAll) {
+                final MatchAll k = (MatchAll) m;
                 if (k.capture != null)
                     env.put(new EVar(k.capture), this);
                 return true;
             }
 
-            if (m instanceof MatchNode) {
-                final MatchNode n = (MatchNode) m;
-                if (n.id == TyTup.class) {
-                    final Iterator<Value> it1 = this.elements.iterator();
-                    final Iterator<Match> it2 = n.args.iterator();
-                    while (it1.hasNext() && it2.hasNext())
-                        if (!it1.next().unpack(it2.next(), env))
-                            return false;
+            if (m instanceof MatchTup) {
+                final MatchTup n = (MatchTup) m;
+                final Iterator<Value> it1 = this.elements.iterator();
+                final Iterator<Match> it2 = n.elements.iterator();
+                while (it1.hasNext() && it2.hasNext())
+                    if (!it1.next().unpack(it2.next(), env))
+                        return false;
 
-                    return it1.hasNext() == it2.hasNext();
-                }
+                return it1.hasNext() == it2.hasNext();
             }
 
             return false;
@@ -211,24 +199,25 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
         @Override
         public boolean unpack(Match m, Map<EVar, Value> env) {
             // match must be either a complete match or a decons pattern
-            if (m instanceof MatchComplete) {
-                final MatchComplete k = (MatchComplete) m;
+            if (m instanceof MatchAll) {
+                final MatchAll k = (MatchAll) m;
                 if (k.capture != null)
                     env.put(new EVar(k.capture), this);
                 return true;
             }
 
-            if (m instanceof MatchNode) {
-                final MatchNode n = (MatchNode) m;
-                if (n.id.equals(this.id)) {
-                    final Iterator<Value> it1 = this.args.iterator();
-                    final Iterator<Match> it2 = n.args.iterator();
-                    while (it1.hasNext() && it2.hasNext())
-                        if (!it1.next().unpack(it2.next(), env))
-                            return false;
+            if (m instanceof MatchCtor) {
+                final MatchCtor n = (MatchCtor) m;
+                if (!n.ctor.equals(this.id))
+                    return false;
 
-                    return it1.hasNext() == it2.hasNext();
-                }
+                final Iterator<Value> it1 = this.args.iterator();
+                final Iterator<Match> it2 = n.args.iterator();
+                while (it1.hasNext() && it2.hasNext())
+                    if (!it1.next().unpack(it2.next(), env))
+                        return false;
+
+                return it1.hasNext() == it2.hasNext();
             }
 
             return false;
@@ -258,10 +247,10 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
         @Override
         public boolean unpack(Match m, Map<EVar, Value> env) {
             // only complete matches can match against lambdas
-            if (!(m instanceof MatchComplete))
+            if (!(m instanceof MatchAll))
                 return false;
 
-            final MatchComplete k = (MatchComplete) m;
+            final MatchAll k = (MatchAll) m;
             if (k.capture != null)
                 env.put(new EVar(k.capture), this);
             return true;

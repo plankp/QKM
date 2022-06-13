@@ -12,6 +12,10 @@ public interface Match {
 
     public Stream<String> getCaptures();
 
+    public Object getCtor();
+
+    public List<Match> getArgs();
+
     public static boolean covers(List<SList<Match>> ps, SList<Match> qs) {
         // based on http://moscova.inria.fr/~maranget/papers/warn/index.html
         tailcall:
@@ -22,7 +26,7 @@ public interface Match {
                 return true;
 
             final Match headQ = qs.head();
-            if (headQ instanceof MatchComplete) {
+            if (headQ instanceof MatchAll) {
                 final CtorSet range = headQ.getType().getCtorSet();
                 if (range != null) {
                     // the idea is to instead of actually replacing headQ
@@ -35,30 +39,29 @@ public interface Match {
                             continue;
 
                         final Match headRow = row.head();
-                        if (headRow instanceof MatchComplete) {
+                        if (headRow instanceof MatchAll) {
                             groups.computeIfAbsent(null, k -> new LinkedList<>());
                             for (final Map.Entry<Object, List<SList<Match>>> pair : groups.entrySet()) {
                                 final Object ctor = pair.getKey();
                                 SList<Match> acc = row.tail();
                                 if (ctor != null)
                                     acc = acc.prependAll(range.getArgs(ctor).stream()
-                                            .map(MatchComplete::wildcard)
+                                            .map(MatchAll::new)
                                             .iterator());
                                 pair.getValue().add(acc);
                             }
-                        } else if (headRow instanceof MatchNode) {
-                            final MatchNode node = (MatchNode) headRow;
-                            groups.computeIfAbsent(node.id, k -> {
+                        } else {
+                            groups.computeIfAbsent(headRow.getCtor(), k -> {
                                 final LinkedList<SList<Match>> initial = new LinkedList<>();
-                                final List<? extends Type> prepends = range.getArgs(node.id);
+                                final List<? extends Type> prepends = range.getArgs(headRow.getCtor());
                                 for (SList<Match> acc : groups.getOrDefault(null, List.of())) {
                                     acc = acc.prependAll(prepends.stream()
-                                            .map(MatchComplete::wildcard)
+                                            .map(MatchAll::new)
                                             .iterator());
                                     initial.add(acc);
                                 }
                                 return initial;
-                            }).add(row.tail().prependAll(node.args));
+                            }).add(row.tail().prependAll(headRow.getArgs()));
                         }
                     }
 
@@ -92,7 +95,7 @@ public interface Match {
                         final Object ctor = pair.getKey();
                         if (ctor != null)
                             qs = qs.prependAll(range.getArgs(ctor).stream()
-                                    .map(MatchComplete::wildcard)
+                                    .map(MatchAll::new)
                                     .iterator());
 
                         if (!ctors.hasNext())
@@ -107,7 +110,7 @@ public interface Match {
                 // patterns. the only thing that works is irrefutable matches.
                 final List<SList<Match>> nextPs = new LinkedList<>();
                 for (final SList<Match> row : ps)
-                    if (!row.isEmpty() && row.head() instanceof MatchComplete)
+                    if (!row.isEmpty() && row.head() instanceof MatchAll)
                         nextPs.add(row.tail());
 
                 ps = nextPs;
@@ -115,29 +118,21 @@ public interface Match {
                 continue tailcall;
             }
 
-            if (headQ instanceof MatchNode) {
-                final MatchNode node = (MatchNode) headQ;
-                final List<SList<Match>> nextPs = new LinkedList<>();
-                for (final SList<Match> row : ps) {
-                    if (row.isEmpty())
-                        continue;
+            final List<SList<Match>> nextPs = new LinkedList<>();
+            for (final SList<Match> row : ps) {
+                if (row.isEmpty())
+                    continue;
 
-                    final Match headRow = row.head();
-                    if (headRow instanceof MatchComplete)
-                        nextPs.add(row.tail().prependAll(node.args));
-                    else if (headRow instanceof MatchNode) {
-                        final MatchNode m = (MatchNode) headRow;
-                        if (node.id.equals(m.id))
-                            nextPs.add(row.tail().prependAll(m.args));
-                    }
-                }
-
-                ps = nextPs;
-                qs = qs.tail().prependAll(node.args);
-                continue tailcall;
+                final Match headRow = row.head();
+                if (headRow instanceof MatchAll)
+                    nextPs.add(row.tail().prependAll(headQ.getArgs()));
+                else if (headQ.getCtor().equals(headRow.getCtor()))
+                    nextPs.add(row.tail().prependAll(headRow.getArgs()));
             }
 
-            throw new AssertionError("UNREACHABLE!!");
+            ps = nextPs;
+            qs = qs.tail().prependAll(headQ.getArgs());
+            continue tailcall;
         }
     }
 }

@@ -1,20 +1,25 @@
 package lang.qkm.match;
 
+import java.util.*;
 import java.util.stream.*;
 import lang.qkm.type.Type;
 
-public final class MatchComplete implements Match {
+public final class MatchAll implements Match {
 
     public final String capture;
     public final Type type;
 
-    public MatchComplete(String capture, Type type) {
-        this.capture = capture;
+    public MatchAll(Type type) {
+        this.capture = null;
         this.type = type;
     }
 
-    public static MatchComplete wildcard(Type type) {
-        return new MatchComplete(null, type);
+    public MatchAll(String capture, Type type) {
+        if (capture == null)
+            throw new IllegalArgumentException("Illegal null capture variable");
+
+        this.capture = capture;
+        this.type = type;
     }
 
     @Override
@@ -27,6 +32,16 @@ public final class MatchComplete implements Match {
     @Override
     public Type getType() {
         return this.type;
+    }
+
+    @Override
+    public Object getCtor() {
+        return null;
+    }
+
+    @Override
+    public List<Match> getArgs() {
+        return null;
     }
 
     @Override
