@@ -155,7 +155,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         final int sz = ctx.ps.size();
         switch (sz) {
         case 0:
-            return new MatchTup(new TyTup(List.of()), List.of());
+            return new MatchTup(List.of());
         case 1:
             return this.visit(ctx.ps.get(0));
         default:
@@ -163,10 +163,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
             for (final PatternContext e : ctx.ps)
                 elements.add(this.visit(e));
 
-            final TyTup ty = new TyTup(elements.stream()
-                    .map(Match::getType)
-                    .collect(Collectors.toList()));
-            return new MatchTup(ty, elements);
+            return new MatchTup(elements);
         }
     }
 }

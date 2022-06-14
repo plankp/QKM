@@ -5,9 +5,9 @@ import java.util.stream.*;
 
 public final class ETup implements Expr {
 
-    public final List<Expr> elements;
+    public final List<? extends Expr> elements;
 
-    public ETup(List<Expr> elements) {
+    public ETup(List<? extends Expr> elements) {
         this.elements = elements;
     }
 

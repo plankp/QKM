@@ -13,7 +13,7 @@ public final class MatchCompiler {
     private BigInteger id = BigInteger.ZERO;
 
     public MatchAll wildcard(Type t) {
-        return new MatchAll("`" + (this.id = this.id.add(BigInteger.ONE)), t);
+        return new MatchAll("`p" + (this.id = this.id.add(BigInteger.ONE)), t);
     }
 
     public Expr compile(Expr scrutinee, Type type, List<Map.Entry<Match, Expr>> cases) {
@@ -60,10 +60,7 @@ public final class MatchCompiler {
                 return new EMatch(scrutinee.get(0),
                                   List.of(Map.entry(match.get(0), e)));
 
-            final MatchTup m = new MatchTup(new TyTup(match.stream()
-                    .map(Match::getType)
-                    .collect(Collectors.toList())), match);
-            return new EMatch(new ETup(scrutinee), List.of(Map.entry(m, e)));
+            return new EMatch(new ETup(scrutinee), List.of(Map.entry(new MatchTup(match), e)));
         }
 
         final Map.Entry<Expr, Type> scrutinee = input.get(column);

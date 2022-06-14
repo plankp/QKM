@@ -34,9 +34,14 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
     private final Evaluator exec;
 
     private Map<String, Type> env = new HashMap<>();
+    private BigInteger idLabel = BigInteger.ZERO;
 
     public ExprChecker(Evaluator exec) {
         this.exec = exec;
+    }
+
+    public EVar freshLabel() {
+        return new EVar("`j" + (this.idLabel = this.idLabel.add(BigInteger.ONE)));
     }
 
     @Override
@@ -238,6 +243,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
         final List<Map.Entry<Match, Expr>> cases = new ArrayList<>(ctx.k.size());
+        final Map<EVar, Expr> jointPoints = new HashMap<>();
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
             final Match m = p.visit(k.p);
@@ -253,7 +259,32 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
                 final Result e = this.visit(k.e);
                 res.unify(e.type);
-                cases.add(Map.entry(m, e.expr));
+
+                // explicitly introduce joint points on each case:
+                //   match s with p1 -> e1
+                // to:
+                //   let j1 (b1, ...) = e1 in
+                //   match s with p1 -> j1 (b1, ...)
+                final List<EVar> binds = p.getBindings().keySet().stream()
+                        .map(EVar::new)
+                        .collect(Collectors.toList());
+
+                final EVar label = this.freshLabel();
+                final Expr joint;
+                if (binds.size() == 1) {
+                    jointPoints.put(label, new ELam(binds.get(0), e.expr));
+                    joint = new EApp(label, binds.get(0));
+                } else {
+                    final EVar dummy = new EVar("`2");
+                    jointPoints.put(label, new ELam(
+                            dummy,
+                            new EMatch(dummy, List.of(Map.entry(
+                                new MatchTup(p.getBindings().entrySet().stream()
+                                        .map(ent -> new MatchAll(ent.getKey(), ent.getValue()))
+                                        .collect(Collectors.toList())), e.expr)))));
+                    joint = new EApp(label, new ETup(binds));
+                }
+                cases.add(Map.entry(m, joint));
             } finally {
                 this.env = old;
             }
@@ -263,8 +294,10 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             System.out.println("Non-exhaustive match pattern");
 
         final MatchCompiler k = new MatchCompiler();
-        return new Result(new ELam(desugared, k.compile(desugared, arg, cases)),
-                          new TyArr(arg, res));
+        return new Result(
+                new ELam(desugared,
+                    new ELetrec(jointPoints, k.compile(desugared, arg, cases))),
+                new TyArr(arg, res));
     }
 
     @Override
@@ -281,6 +314,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
         final List<Map.Entry<Match, Expr>> cases = new ArrayList<>(ctx.k.size());
+        final Map<EVar, Expr> jointPoints = new HashMap<>();
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
             final Match m = p.visit(k.p);
@@ -310,7 +344,28 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
                 final Result e = this.visit(k.e);
                 res.unify(e.type);
-                cases.add(Map.entry(m, e.expr));
+
+                // explicitly introduce joint points on each case
+                final List<EVar> binds = p.getBindings().keySet().stream()
+                        .map(EVar::new)
+                        .collect(Collectors.toList());
+
+                final EVar label = this.freshLabel();
+                final Expr joint;
+                if (binds.size() == 1) {
+                    jointPoints.put(label, new ELam(binds.get(0), e.expr));
+                    joint = new EApp(label, binds.get(0));
+                } else {
+                    final EVar dummy = new EVar("`2");
+                    jointPoints.put(label, new ELam(
+                            dummy,
+                            new EMatch(dummy, List.of(Map.entry(
+                                new MatchTup(p.getBindings().entrySet().stream()
+                                        .map(ent -> new MatchAll(ent.getKey(), ent.getValue()))
+                                        .collect(Collectors.toList())), e.expr)))));
+                    joint = new EApp(label, new ETup(binds));
+                }
+                cases.add(Map.entry(m, joint));
             } finally {
                 this.env = old;
             }
@@ -320,7 +375,9 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             System.out.println("Non-exhaustive match pattern");
 
         final MatchCompiler k = new MatchCompiler();
-        return new Result(k.compile(v.expr, v.type, cases), res);
+        return new Result(
+                new ELetrec(jointPoints, k.compile(v.expr, v.type, cases)),
+                res);
     }
 
     @Override

@@ -7,17 +7,22 @@ import lang.qkm.type.*;
 
 public final class MatchTup implements Match {
 
-    public final TyTup type;
     public final List<Match> elements;
 
-    public MatchTup(TyTup type, List<Match> elements) {
-        this.type = type;
+    private TyTup cached;
+
+    public MatchTup(List<Match> elements) {
         this.elements = elements;
     }
 
     @Override
     public Type getType() {
-        return this.type;
+        if (this.cached == null)
+            this.cached = new TyTup(this.elements.stream()
+                    .map(Match::getType)
+                    .collect(Collectors.toList()));
+
+        return this.cached;
     }
 
     @Override
@@ -37,7 +42,7 @@ public final class MatchTup implements Match {
 
     @Override
     public Match toWildcard(Function<? super Type, ? extends Match> gen) {
-        return new MatchTup(this.type, this.elements.stream()
+        return new MatchTup(this.elements.stream()
                 .map(m -> gen.apply(m.getType()))
                 .collect(Collectors.toList()));
     }
