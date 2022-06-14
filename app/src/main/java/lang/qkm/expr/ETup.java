@@ -29,10 +29,10 @@ public final class ETup implements Expr {
     @Override
     public String toString() {
         if (this.elements.isEmpty())
-            return "'()";
+            return "()";
 
         return this.elements.stream()
                 .map(Object::toString)
-                .collect(Collectors.joining(" ", "'(", ")"));
+                .collect(Collectors.joining(", ", "(", ")"));
     }
 }

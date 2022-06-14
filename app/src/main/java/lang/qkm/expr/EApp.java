@@ -25,15 +25,22 @@ public final class EApp implements Expr {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder();
-        sb.append('(').append(this.f).append(' ');
+        final ArrayDeque<Expr> stack = new ArrayDeque<>();
+        stack.push(this.arg);
 
-        Expr arg = this.arg;
-        while (arg instanceof EApp) {
-            final EApp a = (EApp) arg;
-            sb.append(a.f).append(' ');
-            arg = a.arg;
+        Expr f = this.f;
+        while (f instanceof EApp) {
+            final EApp a = (EApp) f;
+            stack.push(a.arg);
+            f = a.f;
         }
-        return sb.append(arg).append(')').toString();
+
+        final StringBuilder sb = new StringBuilder();
+        sb.append('(').append(f);
+
+        while (!stack.isEmpty())
+            sb.append(' ').append(stack.pop());
+
+        return sb.append(')').toString();
     }
 }

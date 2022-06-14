@@ -48,6 +48,6 @@ public final class MatchCtor implements Match {
 
         return this.args.stream()
                 .map(Object::toString)
-                .collect(Collectors.joining(", ", "(", ")"));
+                .collect(Collectors.joining(" ", "(" + this.ctor + " ", ")"));
     }
 }
