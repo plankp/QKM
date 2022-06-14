@@ -24,7 +24,7 @@ public final class MatchCompiler {
 
     private Expr compile(List<Map.Entry<Expr, Type>> input, List<Map.Entry<List<Match>, Expr>> cases) {
         if (cases.isEmpty())
-            throw new RuntimeException("Fail?");
+            return new EErr(new EString("Match failure!"));
 
         int column = -1;
         boolean allWildcard = true;

@@ -395,4 +395,9 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
             this.env = old;
         }
     }
+
+    @Override
+    public Value visitEErr(EErr e) {
+        throw new RuntimeException(e.value.accept(this).force() + "");
+    }
 }

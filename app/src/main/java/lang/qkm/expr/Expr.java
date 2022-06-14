@@ -17,6 +17,7 @@ public interface Expr {
         public R visitELam(ELam e);
         public R visitEApp(EApp e);
         public R visitELetrec(ELetrec e);
+        public R visitEErr(EErr e);
     }
 
     public <R> R accept(Visitor<R> v);
