@@ -363,7 +363,11 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
 
     @Override
     public Value visitEVar(EVar e) {
-        return this.env.get(e);
+        final Value v = this.env.get(e);
+        if (v == null)
+            throw new RuntimeException("Undeclared variable " + e);
+
+        return v;
     }
 
     @Override

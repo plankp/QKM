@@ -262,7 +262,8 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         if (!Match.covers(patterns, SList.of(new MatchAll(arg))))
             System.out.println("Non-exhaustive match pattern");
 
-        return new Result(new ELam(desugared, new EMatch(desugared, cases)),
+        final MatchCompiler k = new MatchCompiler();
+        return new Result(new ELam(desugared, k.compile(desugared, arg, cases)),
                           new TyArr(arg, res));
     }
 
@@ -318,7 +319,8 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         if (!Match.covers(patterns, SList.of(new MatchAll(v.type))))
             System.out.println("Non-exhaustive match pattern");
 
-        return new Result(new EMatch(v.expr, cases), res);
+        final MatchCompiler k = new MatchCompiler();
+        return new Result(k.compile(v.expr, v.type, cases), res);
     }
 
     @Override

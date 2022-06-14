@@ -16,6 +16,10 @@ public interface Match {
 
     public List<Match> getArgs();
 
+    public default Match toWildcard(Function<? super Type, ? extends Match> gen) {
+        return this;
+    }
+
     public static boolean covers(List<SList<Match>> ps, SList<Match> qs) {
         // based on http://moscova.inria.fr/~maranget/papers/warn/index.html
         tailcall:

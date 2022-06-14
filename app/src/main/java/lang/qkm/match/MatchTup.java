@@ -2,6 +2,7 @@ package lang.qkm.match;
 
 import java.util.*;
 import java.util.stream.*;
+import java.util.function.*;
 import lang.qkm.type.*;
 
 public final class MatchTup implements Match {
@@ -32,6 +33,13 @@ public final class MatchTup implements Match {
     @Override
     public List<Match> getArgs() {
         return this.elements;
+    }
+
+    @Override
+    public Match toWildcard(Function<? super Type, ? extends Match> gen) {
+        return new MatchTup(this.type, this.elements.stream()
+                .map(m -> gen.apply(m.getType()))
+                .collect(Collectors.toList()));
     }
 
     @Override

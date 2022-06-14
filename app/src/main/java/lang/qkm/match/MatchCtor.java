@@ -2,6 +2,7 @@ package lang.qkm.match;
 
 import java.util.*;
 import java.util.stream.*;
+import java.util.function.*;
 import lang.qkm.type.*;
 
 public final class MatchCtor implements Match {
@@ -34,6 +35,13 @@ public final class MatchCtor implements Match {
     @Override
     public List<Match> getArgs() {
         return this.args;
+    }
+
+    @Override
+    public Match toWildcard(Function<? super Type, ? extends Match> gen) {
+        return new MatchCtor(this.type, this.ctor, this.args.stream()
+                .map(m -> gen.apply(m.getType()))
+                .collect(Collectors.toList()));
     }
 
     @Override
