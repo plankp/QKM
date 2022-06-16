@@ -259,32 +259,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
                 final Result e = this.visit(k.e);
                 res.unify(e.type);
-
-                // explicitly introduce joint points on each case:
-                //   match s with p1 -> e1
-                // to:
-                //   let j1 (b1, ...) = e1 in
-                //   match s with p1 -> j1 (b1, ...)
-                final List<EVar> binds = p.getBindings().keySet().stream()
-                        .map(EVar::new)
-                        .collect(Collectors.toList());
-
-                final EVar label = this.freshLabel();
-                final Expr joint;
-                if (binds.size() == 1) {
-                    jointPoints.put(label, new ELam(binds.get(0), e.expr));
-                    joint = new EApp(label, binds.get(0));
-                } else {
-                    final EVar dummy = new EVar("`2");
-                    jointPoints.put(label, new ELam(
-                            dummy,
-                            new EMatch(dummy, List.of(Map.entry(
-                                new MatchTup(p.getBindings().entrySet().stream()
-                                        .map(ent -> new MatchAll(ent.getKey(), ent.getValue()))
-                                        .collect(Collectors.toList())), e.expr)))));
-                    joint = new EApp(label, new ETup(binds));
-                }
-                cases.add(Map.entry(m, joint));
+                cases.add(Map.entry(m, e.expr));
             } finally {
                 this.env = old;
             }
@@ -293,10 +268,8 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         if (!Match.covers(patterns, SList.of(new MatchAll(arg))))
             System.out.println("Non-exhaustive match pattern");
 
-        final MatchCompiler k = new MatchCompiler();
         return new Result(
-                new ELam(desugared,
-                    new ELetrec(jointPoints, k.compile(desugared, arg, cases))),
+                new ELam(desugared, new EMatch(desugared, cases)),
                 new TyArr(arg, res));
     }
 
@@ -344,28 +317,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
                 final Result e = this.visit(k.e);
                 res.unify(e.type);
-
-                // explicitly introduce joint points on each case
-                final List<EVar> binds = p.getBindings().keySet().stream()
-                        .map(EVar::new)
-                        .collect(Collectors.toList());
-
-                final EVar label = this.freshLabel();
-                final Expr joint;
-                if (binds.size() == 1) {
-                    jointPoints.put(label, new ELam(binds.get(0), e.expr));
-                    joint = new EApp(label, binds.get(0));
-                } else {
-                    final EVar dummy = new EVar("`2");
-                    jointPoints.put(label, new ELam(
-                            dummy,
-                            new EMatch(dummy, List.of(Map.entry(
-                                new MatchTup(p.getBindings().entrySet().stream()
-                                        .map(ent -> new MatchAll(ent.getKey(), ent.getValue()))
-                                        .collect(Collectors.toList())), e.expr)))));
-                    joint = new EApp(label, new ETup(binds));
-                }
-                cases.add(Map.entry(m, joint));
+                cases.add(Map.entry(m, e.expr));
             } finally {
                 this.env = old;
             }
@@ -374,9 +326,8 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         if (!Match.covers(patterns, SList.of(new MatchAll(v.type))))
             System.out.println("Non-exhaustive match pattern");
 
-        final MatchCompiler k = new MatchCompiler();
         return new Result(
-                new ELetrec(jointPoints, k.compile(v.expr, v.type, cases)),
+                new ELetrec(jointPoints, new EMatch(v.expr, cases)),
                 res);
     }
 
