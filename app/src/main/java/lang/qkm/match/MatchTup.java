@@ -3,26 +3,14 @@ package lang.qkm.match;
 import java.util.*;
 import java.util.stream.*;
 import java.util.function.*;
-import lang.qkm.type.*;
+import lang.qkm.type.TyTup;
 
 public final class MatchTup implements Match {
 
     public final List<Match> elements;
 
-    private TyTup cached;
-
     public MatchTup(List<Match> elements) {
         this.elements = elements;
-    }
-
-    @Override
-    public Type getType() {
-        if (this.cached == null)
-            this.cached = new TyTup(this.elements.stream()
-                    .map(Match::getType)
-                    .collect(Collectors.toList()));
-
-        return this.cached;
     }
 
     @Override
@@ -41,9 +29,9 @@ public final class MatchTup implements Match {
     }
 
     @Override
-    public Match toWildcard(Function<? super Type, ? extends Match> gen) {
+    public Match toWildcard(Supplier<? extends Match> gen) {
         return new MatchTup(this.elements.stream()
-                .map(m -> gen.apply(m.getType()))
+                .map(k -> gen.get())
                 .collect(Collectors.toList()));
     }
 

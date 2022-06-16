@@ -8,21 +8,21 @@ import lang.qkm.type.*;
 
 public final class MatchCompiler {
 
-    private final Map<Expr, Map<String, Map.Entry<Expr, Type>>> bindings = new HashMap<>();
+    private final Map<Expr, Map<String, Expr>> bindings = new HashMap<>();
 
     private BigInteger id = BigInteger.ZERO;
 
-    public MatchAll wildcard(Type t) {
-        return new MatchAll("`p" + (this.id = this.id.add(BigInteger.ONE)), t);
+    public MatchAll wildcard() {
+        return new MatchAll("`p" + (this.id = this.id.add(BigInteger.ONE)));
     }
 
-    public Expr compile(Expr scrutinee, Type type, List<Map.Entry<Match, Expr>> cases) {
-        return this.compile(List.of(Map.entry(scrutinee, type)), cases.stream()
+    public Expr compile(Expr scrutinee, List<Map.Entry<Match, Expr>> cases) {
+        return this.compile(List.of(scrutinee), cases.stream()
                 .map(p -> Map.entry(List.of(p.getKey()), p.getValue()))
                 .collect(Collectors.toList()));
     }
 
-    private Expr compile(List<Map.Entry<Expr, Type>> input, List<Map.Entry<List<Match>, Expr>> cases) {
+    private Expr compile(List<Expr> input, List<Map.Entry<List<Match>, Expr>> cases) {
         if (cases.isEmpty())
             return new EErr(new EString("Match failure!"));
 
@@ -37,23 +37,21 @@ public final class MatchCompiler {
         if (allWildcard) {
             final Map.Entry<List<Match>, Expr> row = cases.get(0);
             final Expr e = row.getValue();
-            final Map<String, Map.Entry<Expr, Type>> captures = this.bindings.getOrDefault(e, Map.of());
+            final Map<String, Expr> captures = this.bindings.getOrDefault(e, Map.of());
 
             // conservatively emit a match to make sure the variables are
             // bound correctly.
 
             final List<Expr> scrutinee = new ArrayList<>(input.size() + captures.size());
-            for (final Map.Entry<Expr, Type> p : input)
-                scrutinee.add(p.getKey());
+            for (final Expr p : input)
+                scrutinee.add(p);
 
             final List<Match> match = new ArrayList<>(input.size() + captures.size());
             match.addAll(row.getKey());
 
-            for (final Map.Entry<String, Map.Entry<Expr, Type>> capture : captures.entrySet()) {
-                final String name = capture.getKey();
-                final Map.Entry<Expr, Type> value = capture.getValue();
-                scrutinee.add(value.getKey());
-                match.add(new MatchAll(capture.getKey(), value.getValue()));
+            for (final Map.Entry<String, Expr> capture : captures.entrySet()) {
+                match.add(new MatchAll(capture.getKey()));
+                scrutinee.add(capture.getValue());
             }
 
             if (scrutinee.size() == 1)
@@ -63,8 +61,7 @@ public final class MatchCompiler {
             return new EMatch(new ETup(scrutinee), List.of(Map.entry(new MatchTup(match), e)));
         }
 
-        final Map.Entry<Expr, Type> scrutinee = input.get(column);
-        final CtorSet range = scrutinee.getValue().getCtorSet();
+        final Expr scrutinee = input.get(column);
 
         final Map<Object, Match> ctors = new HashMap<>();
         for (final Map.Entry<List<Match>, Expr> k : cases) {
@@ -75,41 +72,28 @@ public final class MatchCompiler {
 
         final List<Map.Entry<Match, Expr>> newCases = new ArrayList<>(ctors.size() + 1);
         for (final Match ctor : ctors.values()) {
-            final List<Map.Entry<Expr, Type>> newInput = new ArrayList<>(input.size() - 1 + ctor.getArgs().size());
+            final List<Expr> newInput = new ArrayList<>(input.size() - 1 + ctor.getArgs().size());
             newInput.addAll(input.subList(0, column));
             for (final Match exp : ctor.getArgs()) {
                 final MatchAll node = (MatchAll) exp;
-                newInput.add(Map.entry(new EVar(node.capture), node.getType()));
+                newInput.add(new EVar(node.capture));
             }
             newInput.addAll(input.subList(column + 1, input.size()));
 
             newCases.add(Map.entry(ctor, this.compile(newInput, this.specialize(cases, column, ctor, scrutinee))));
         }
 
-        // if we are already spanning, then there's no point of emitting a
-        // extra wildcard case.
-        final int sz = ctors.size();
-        final boolean spans;
-        final Optional<Boolean> fastPath;
-        if (sz < Integer.MAX_VALUE
-                && (fastPath = range.sameSize(sz)).isPresent())
-            spans = fastPath.get();
-        else
-            spans = range.spannedBy(ctors.keySet());
+        final MatchAll guard = this.wildcard();
+        final List<Expr> newInput = new ArrayList<>(input.size() - 1);
+        newInput.addAll(input.subList(0, column));
+        newInput.addAll(input.subList(column + 1, input.size()));
 
-        if (!spans) {
-            final MatchAll guard = this.wildcard(scrutinee.getValue());
-            final List<Map.Entry<Expr, Type>> newInput = new ArrayList<>(input.size() - 1);
-            newInput.addAll(input.subList(0, column));
-            newInput.addAll(input.subList(column + 1, input.size()));
+        newCases.add(Map.entry(guard, this.compile(newInput, this.defaulted(cases, column, scrutinee))));
 
-            newCases.add(Map.entry(guard, this.compile(newInput, this.defaulted(cases, column, scrutinee))));
-        }
-
-        return new EMatch(scrutinee.getKey(), newCases);
+        return new EMatch(scrutinee, newCases);
     }
 
-    private List<Map.Entry<List<Match>, Expr>> specialize(List<Map.Entry<List<Match>, Expr>> cases, int column, Match node, Map.Entry<Expr, Type> scrutinee) {
+    private List<Map.Entry<List<Match>, Expr>> specialize(List<Map.Entry<List<Match>, Expr>> cases, int column, Match node, Expr scrutinee) {
         final List<Map.Entry<List<Match>, Expr>> result = new ArrayList<>(cases.size());
         final List<Match> args = node.getArgs();
 
@@ -125,7 +109,7 @@ public final class MatchCompiler {
                 final List<Match> newRow = new ArrayList<>(oldRow.size() - 1 + args.size());
                 newRow.addAll(oldRow.subList(0, column));
                 for (final Match exp : args)
-                    newRow.add(new MatchAll(exp.getType()));
+                    newRow.add(new MatchAll());
                 newRow.addAll(oldRow.subList(column + 1, oldRow.size()));
                 result.add(Map.entry(newRow, pair.getValue()));
             } else if (m.getCtor().equals(node.getCtor())) {
@@ -139,7 +123,7 @@ public final class MatchCompiler {
         return result;
     }
 
-    private List<Map.Entry<List<Match>, Expr>> defaulted(List<Map.Entry<List<Match>, Expr>> cases, int column, Map.Entry<Expr, Type> scrutinee) {
+    private List<Map.Entry<List<Match>, Expr>> defaulted(List<Map.Entry<List<Match>, Expr>> cases, int column, Expr scrutinee) {
         final List<Map.Entry<List<Match>, Expr>> result = new ArrayList<>(cases.size());
 
         for (final Map.Entry<List<Match>, Expr> pair : cases) {

@@ -9,7 +9,7 @@ import lang.qkm.match.*;
 import lang.qkm.QKMBaseVisitor;
 import static lang.qkm.QKMParser.*;
 
-public final class PatternChecker extends QKMBaseVisitor<Match> {
+public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
 
     private final Map<String, TyVar> bindings = new HashMap<>();
     private final TypeState state;
@@ -25,7 +25,7 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
     }
 
     @Override
-    public Match visitPatDecons(PatDeconsContext ctx) {
+    public Typed<Match> visitPatDecons(PatDeconsContext ctx) {
         final String ctor = ctx.k.getText();
         final Type scheme = this.kindChecker.getCtor(ctor);
         if (scheme == null)
@@ -39,48 +39,48 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
         else {
             args = new ArrayList<>(ctx.args.size());
             for (final Pattern0Context arg : ctx.args) {
-                final Match m = this.visit(arg);
-                args.add(m);
+                final Typed<Match> m = this.visit(arg);
+                args.add(m.value);
 
                 final TyVar res = this.state.freshType();
-                acc.unify(new TyArr(m.getType(), res));
+                acc.unify(new TyArr(m.type, res));
                 acc = res.unwrap();
             }
         }
 
         if (acc instanceof TyCtor)
-            return new MatchCtor((TyCtor) acc, ctor, args);
+            return new Typed<>(new MatchCtor(ctor, args), acc);
 
         throw new RuntimeException("Illegal incomplete constructor application");
     }
 
     @Override
-    public Match visitPatIgnore(PatIgnoreContext ctx) {
-        return new MatchAll(this.state.freshType());
+    public Typed<Match> visitPatIgnore(PatIgnoreContext ctx) {
+        return new Typed<>(new MatchAll(), this.state.freshType());
     }
 
     @Override
-    public Match visitPatBind(PatBindContext ctx) {
+    public Typed<Match> visitPatBind(PatBindContext ctx) {
         final String name = ctx.n.getText();
-        final TyVar typ = this.state.freshType();
-        if (this.bindings.put(name, typ) != null)
+        final TyVar type = this.state.freshType();
+        if (this.bindings.put(name, type) != null)
             throw new RuntimeException("Illegal duplicate binding " + name + " within the same pattern");
 
-        return new MatchAll(name, typ);
+        return new Typed<>(new MatchAll(name), type);
     }
 
     @Override
-    public Match visitPatTrue(PatTrueContext ctx) {
-        return new MatchBool(true);
+    public Typed<Match> visitPatTrue(PatTrueContext ctx) {
+        return new Typed<>(new MatchBool(true), TyBool.INSTANCE);
     }
 
     @Override
-    public Match visitPatFalse(PatFalseContext ctx) {
-        return new MatchBool(false);
+    public Typed<Match> visitPatFalse(PatFalseContext ctx) {
+        return new Typed<>(new MatchBool(false), TyBool.INSTANCE);
     }
 
     @Override
-    public Match visitPatInt(PatIntContext ctx) {
+    public Typed<Match> visitPatInt(PatIntContext ctx) {
         String lit = ctx.getText();
 
         final int offs = lit.indexOf('i');
@@ -125,45 +125,49 @@ public final class PatternChecker extends QKMBaseVisitor<Match> {
             v = v.negate();
         v = ty.signed(v);
 
-        return new MatchInt(ty, v);
+        return new Typed<>(new MatchInt(v), ty);
     }
 
     @Override
-    public Match visitPatChar(PatCharContext ctx) {
+    public Typed<Match> visitPatChar(PatCharContext ctx) {
         final String t = ctx.getText();
         final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
         final int cp = encoder.next();
 
-        return new MatchInt(new TyInt(32), BigInteger.valueOf(cp));
+        return new Typed<>(new MatchInt(BigInteger.valueOf(cp)), new TyInt(32));
     }
 
     @Override
-    public Match visitPatText(PatTextContext ctx) {
+    public Typed<Match> visitPatText(PatTextContext ctx) {
         final String t = ctx.getText();
         if (t.length() == 2)
-            return new MatchString("");
+            return new Typed<>(new MatchString(""), TyString.INSTANCE);
 
         final StrEscape encoder = new StrEscape(t, 1, t.length() - 1);
         final StringBuilder sb = new StringBuilder();
         while (encoder.hasNext())
             sb.appendCodePoint(encoder.next());
-        return new MatchString(sb.toString());
+        return new Typed<>(new MatchString(sb.toString()), TyString.INSTANCE);
     }
 
     @Override
-    public Match visitPatGroup(PatGroupContext ctx) {
+    public Typed<Match> visitPatGroup(PatGroupContext ctx) {
         final int sz = ctx.ps.size();
         switch (sz) {
-        case 0:
-            return new MatchTup(List.of());
         case 1:
             return this.visit(ctx.ps.get(0));
+        case 0:
+            return new Typed<>(new MatchTup(List.of()), new TyTup(List.of()));
         default:
-            final List<Match> elements = new ArrayList<>(sz);
-            for (final PatternContext e : ctx.ps)
-                elements.add(this.visit(e));
+            final List<Match> ms = new ArrayList<>(sz);
+            final List<Type> ts = new ArrayList<>(sz);
+            for (final PatternContext e : ctx.ps) {
+                final Typed<Match> r = this.visit(e);
+                ms.add(r.value);
+                ts.add(r.type);
+            }
 
-            return new MatchTup(elements);
+            return new Typed<>(new MatchTup(ms), new TyTup(ts));
         }
     }
 }

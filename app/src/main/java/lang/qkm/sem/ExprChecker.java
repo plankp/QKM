@@ -246,12 +246,12 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         final Map<EVar, Expr> jointPoints = new HashMap<>();
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
-            final Match m = p.visit(k.p);
-            arg.unify(m.getType());
+            final Typed<Match> m = p.visit(k.p);
+            arg.unify(m.type);
 
             if (Match.covers(patterns, SList.of(m)))
                 System.out.println("Useless match pattern");
-            patterns.add(SList.of(m));
+            patterns.add(SList.of(m.value));
 
             try {
                 this.env = new HashMap<>(old);
@@ -259,13 +259,13 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
                 final Result e = this.visit(k.e);
                 res.unify(e.type);
-                cases.add(Map.entry(m, e.expr));
+                cases.add(Map.entry(m.value, e.expr));
             } finally {
                 this.env = old;
             }
         }
 
-        if (!Match.covers(patterns, SList.of(new MatchAll(arg))))
+        if (!Match.covers(patterns, SList.of(new Typed<>(new MatchAll(), arg))))
             System.out.println("Non-exhaustive match pattern");
 
         return new Result(
@@ -290,12 +290,12 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         final Map<EVar, Expr> jointPoints = new HashMap<>();
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
-            final Match m = p.visit(k.p);
-            v.type.unify(m.getType());
+            final Typed<Match> m = p.visit(k.p);
+            v.type.unify(m.type);
 
             if (Match.covers(patterns, SList.of(m)))
                 System.out.println("Useless match pattern");
-            patterns.add(SList.of(m));
+            patterns.add(SList.of(m.value));
 
             // rebuild the set of monomorphic type variables because the
             // pattern might have introduced new ones.
@@ -317,13 +317,13 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
                 final Result e = this.visit(k.e);
                 res.unify(e.type);
-                cases.add(Map.entry(m, e.expr));
+                cases.add(Map.entry(m.value, e.expr));
             } finally {
                 this.env = old;
             }
         }
 
-        if (!Match.covers(patterns, SList.of(new MatchAll(v.type))))
+        if (!Match.covers(patterns, SList.of(new Typed<>(new MatchAll(), v.type))))
             System.out.println("Non-exhaustive match pattern");
 
         return new Result(

@@ -2,7 +2,6 @@ package lang.qkm.match;
 
 import java.util.*;
 import java.util.stream.*;
-import lang.qkm.type.*;
 
 public final class MatchString implements Match {
 
@@ -10,11 +9,6 @@ public final class MatchString implements Match {
 
     public MatchString(String value) {
         this.value = value;
-    }
-
-    @Override
-    public Type getType() {
-        return TyString.INSTANCE;
     }
 
     @Override

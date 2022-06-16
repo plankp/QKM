@@ -3,23 +3,15 @@ package lang.qkm.match;
 import java.util.*;
 import java.util.stream.*;
 import java.util.function.*;
-import lang.qkm.type.*;
 
 public final class MatchCtor implements Match {
 
-    public final TyCtor type;
     public final String ctor;
     public final List<Match> args;
 
-    public MatchCtor(TyCtor type, String ctor, List<Match> args) {
-        this.type = type;
+    public MatchCtor(String ctor, List<Match> args) {
         this.ctor = ctor;
         this.args = args;
-    }
-
-    @Override
-    public Type getType() {
-        return this.type;
     }
 
     @Override
@@ -38,9 +30,9 @@ public final class MatchCtor implements Match {
     }
 
     @Override
-    public Match toWildcard(Function<? super Type, ? extends Match> gen) {
-        return new MatchCtor(this.type, this.ctor, this.args.stream()
-                .map(m -> gen.apply(m.getType()))
+    public Match toWildcard(Supplier<? extends Match> gen) {
+        return new MatchCtor(this.ctor, this.args.stream()
+                .map(k -> gen.get())
                 .collect(Collectors.toList()));
     }
 

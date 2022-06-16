@@ -2,7 +2,6 @@ package lang.qkm.match;
 
 import java.util.*;
 import java.util.stream.*;
-import lang.qkm.type.*;
 
 public final class MatchBool implements Match {
 
@@ -10,11 +9,6 @@ public final class MatchBool implements Match {
 
     public MatchBool(boolean value) {
         this.value = value;
-    }
-
-    @Override
-    public Type getType() {
-        return TyBool.INSTANCE;
     }
 
     @Override

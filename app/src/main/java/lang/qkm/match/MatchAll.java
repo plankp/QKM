@@ -2,24 +2,20 @@ package lang.qkm.match;
 
 import java.util.*;
 import java.util.stream.*;
-import lang.qkm.type.Type;
 
 public final class MatchAll implements Match {
 
     public final String capture;
-    public final Type type;
 
-    public MatchAll(Type type) {
+    public MatchAll() {
         this.capture = null;
-        this.type = type;
     }
 
-    public MatchAll(String capture, Type type) {
+    public MatchAll(String capture) {
         if (capture == null)
             throw new IllegalArgumentException("Illegal null capture variable");
 
         this.capture = capture;
-        this.type = type;
     }
 
     @Override
@@ -27,11 +23,6 @@ public final class MatchAll implements Match {
         return this.capture == null
                 ? Stream.empty()
                 : Stream.of(this.capture);
-    }
-
-    @Override
-    public Type getType() {
-        return this.type;
     }
 
     @Override
