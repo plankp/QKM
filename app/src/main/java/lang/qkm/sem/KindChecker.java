@@ -32,6 +32,17 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
     private Map<String, Result> env = new HashMap<>();
     private Map<TyVar, Type> kinds = new HashMap<>();
 
+    public KindChecker newScope() {
+        final KindChecker k = new KindChecker();
+
+        k.typeCtors.putAll(this.typeCtors);
+        k.dataCtors.putAll(this.dataCtors);
+        k.allowFreeTypes = this.allowFreeTypes;
+        k.env.putAll(this.env);
+        k.kinds.putAll(this.kinds);
+        return k;
+    }
+
     public Type getCtor(String name) {
         return this.dataCtors.get(name);
     }
@@ -163,11 +174,14 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
                 .distinct()
                 .collect(Collectors.toCollection(ArrayDeque::new));
 
-        final Type t = TypeState.gen(r.type, quants);
+        Type t = r.type.unwrap();
         Type kind = r.kind.unwrap();
         final Iterator<TyVar> it = quants.descendingIterator();
-        while (it.hasNext())
-            kind = new TyArr(this.kinds.get(it.next()).unwrap(), kind);
+        while (it.hasNext()) {
+            final TyVar q = it.next();
+            t = new TyPoly(q, t);
+            kind = new TyArr(this.kinds.get(q).unwrap(), kind);
+        }
 
         // all unconstrainted kinds are set to *.
         final Iterator<TyVar> unconstrainted = kind.fv().distinct().iterator();
