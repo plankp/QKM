@@ -60,6 +60,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
                 .collect(Collectors.toSet());
 
         final Map<String, Type> defs = new HashMap<>();
+        final Map<String, KindChecker> tyEnv = new HashMap<>();
         for (final BindingContext b : ctx.b) {
             final String name = b.n.getText();
             if (defs.containsKey(name))
@@ -67,14 +68,17 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
             // unless annotated, bindings exist as monotypes in rhs of the
             // binding declarations.
+            final KindChecker newScope = this.kindChecker.newScope();
             final Type ty;
             if (b.t == null)
                 ty = this.state.freshType();
             else
-                ty = this.kindChecker.visit(b.t).type.eval(Map.of());
+                ty = newScope.visit(b.t).type.eval(Map.of());
             defs.put(name, ty);
+            tyEnv.put(name, newScope);
         }
 
+        final KindChecker outer = this.kindChecker;
         final Map<String, Type> old = this.env;
         this.env = new HashMap<>(old);
         this.env.putAll(defs);
@@ -84,17 +88,23 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             final Set<TyVar> scoped = new HashSet<>();
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
-                final Result t = this.visit(b.e);
-                bindings.put(new EVar(name), t.expr);
+                try {
+                    this.kindChecker = tyEnv.get(name);
 
-                Type k = this.env.get(name);
-                while (k instanceof TyPoly) {
-                    final TyPoly p = (TyPoly) k;
-                    scoped.add(p.arg);
-                    k = p.body;
+                    final Result t = this.visit(b.e);
+                    bindings.put(new EVar(name), t.expr);
+
+                    Type k = this.env.get(name);
+                    while (k instanceof TyPoly) {
+                        final TyPoly p = (TyPoly) k;
+                        scoped.add(p.arg);
+                        k = p.body;
+                    }
+
+                    k.unify(t.type);
+                } finally {
+                    this.kindChecker = outer;
                 }
-
-                k.unify(t.type);
             }
 
             // generalize based on the previously collected free variables.
@@ -162,6 +172,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
                 .collect(Collectors.toSet());
 
         final Map<String, Type> defs = new HashMap<>();
+        final Map<String, KindChecker> tyEnv = new HashMap<>();
         for (final BindingContext b : ctx.b) {
             final String name = b.n.getText();
             if (defs.containsKey(name))
@@ -169,14 +180,17 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
             // unless annotated, bindings exist as monotypes in rhs of the
             // binding declarations.
+            final KindChecker newScope = this.kindChecker.newScope();
             final Type ty;
             if (b.t == null)
                 ty = this.state.freshType();
             else
-                ty = this.kindChecker.visit(b.t).type.eval(Map.of());
+                ty = newScope.visit(b.t).type.eval(Map.of());
             defs.put(name, ty);
+            tyEnv.put(name, newScope);
         }
 
+        final KindChecker outer = this.kindChecker;
         final Map<String, Type> old = this.env;
         this.env = new HashMap<>(old);
         this.env.putAll(defs);
@@ -186,17 +200,23 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             final Set<TyVar> scoped = new HashSet<>();
             for (final BindingContext b : ctx.b) {
                 final String name = b.n.getText();
-                final Result t = this.visit(b.e);
-                bindings.put(new EVar(name), t.expr);
+                try {
+                    this.kindChecker = tyEnv.get(name);
 
-                Type k = this.env.get(name);
-                while (k instanceof TyPoly) {
-                    final TyPoly p = (TyPoly) k;
-                    scoped.add(p.arg);
-                    k = p.body;
+                    final Result t = this.visit(b.e);
+                    bindings.put(new EVar(name), t.expr);
+
+                    Type k = this.env.get(name);
+                    while (k instanceof TyPoly) {
+                        final TyPoly p = (TyPoly) k;
+                        scoped.add(p.arg);
+                        k = p.body;
+                    }
+
+                    k.unify(t.type);
+                } finally {
+                    this.kindChecker = outer;
                 }
-
-                k.unify(t.type);
             }
 
             // generalize based on the previously collected free variables.
