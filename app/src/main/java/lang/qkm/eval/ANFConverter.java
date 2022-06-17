@@ -7,16 +7,22 @@ import lang.qkm.match.*;
 
 public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.Visitor<Match> {
 
-    private final class BindingInfo {
+    private interface BindingInfo {
+
+        public Expr apply(Expr e);
+    }
+
+    private final class LetBinding implements BindingInfo {
 
         public final EVar name;
         public final Expr value;
 
-        public BindingInfo(EVar name, Expr value) {
+        public LetBinding(EVar name, Expr value) {
             this.name = name;
             this.value = value;
         }
 
+        @Override
         public Expr apply(Expr e) {
             if (!(this.value instanceof ELet || this.value instanceof EMatch))
                 return new ELet(this.name, this.value, e);
@@ -27,6 +33,20 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
             final EVar cont = new EVar(ANFConverter.this.newName());
             return new ELet(cont, new ELam(this.name, e),
                             this.value.accept(new FixupCont(cont)));
+        }
+    }
+
+    private final class LetrecBinding implements BindingInfo {
+
+        public final Map<EVar, Expr> binds;
+
+        public LetrecBinding(Map<EVar, Expr> binds) {
+            this.binds = binds;
+        }
+
+        @Override
+        public Expr apply(Expr e) {
+            return new ELetrec(this.binds, e);
         }
     }
 
@@ -156,7 +176,7 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
         e = e.accept(this);
         if (!e.isAtom()) {
             final EVar capture = new EVar(this.newName());
-            this.seq.push(new BindingInfo(capture, e));
+            this.seq.push(new LetBinding(capture, e));
             e = capture;
         }
 
@@ -255,14 +275,16 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
 
     @Override
     public Expr visitELet(ELet e) {
-        final Expr value = this.rewriteAtom(e.value);
+        final Expr value = e.value.accept(this);
 
         final String oldMapping = this.mapping.get(e.bind.name);
         final String newMapping = this.newName();
         this.mapping.put(e.bind.name, newMapping);
-        this.seq.push(new BindingInfo(new EVar(newMapping), value));
+        this.seq.push(new LetBinding(new EVar(newMapping), value));
 
-        return e.body.accept(this);
+        final Expr body = e.body.accept(this);
+        this.mapping.put(e.bind.name, oldMapping);
+        return body;
     }
 
     @Override
@@ -283,9 +305,10 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
         }
 
         this.seq = outer;
+        this.seq.push(new LetrecBinding(binds));
         final Expr body = e.body.accept(this);
         this.mapping = old;
-        return new ELetrec(binds, body);
+        return body;
     }
 
     @Override
