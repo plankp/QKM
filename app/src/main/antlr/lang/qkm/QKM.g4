@@ -163,4 +163,5 @@ pattern0
     | CHAR                                      # PatChar
     | TEXT                                      # PatText
     | '(' ((ps+=pattern ',')* ps+=pattern)? ')' # PatGroup
+    | '(' p=pattern ':' t=type ')'              # PatTyped
     ;

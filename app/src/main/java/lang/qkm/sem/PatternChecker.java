@@ -170,4 +170,14 @@ public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
             return new Typed<>(new MatchTup(ms), new TyTup(ts));
         }
     }
+
+    @Override
+    public Typed<Match> visitPatTyped(PatTypedContext ctx) {
+        final Typed<Match> p = this.visit(ctx.p);
+        final KindChecker.Result r = this.kindChecker.visit(ctx.t);
+        r.kind.unify(TyKind.VALUE);
+        r.type.unify(p.type);
+
+        return p;
+    }
 }
