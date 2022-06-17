@@ -12,6 +12,11 @@ public final class MatchString implements Match {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitMatchString(this);
+    }
+
+    @Override
     public Stream<String> getCaptures() {
         return Stream.empty();
     }

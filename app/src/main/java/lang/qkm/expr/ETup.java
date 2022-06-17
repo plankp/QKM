@@ -22,6 +22,11 @@ public final class ETup implements Expr {
     }
 
     @Override
+    public boolean isAtom() {
+        return this.elements.isEmpty();
+    }
+
+    @Override
     public String toString() {
         if (this.elements.isEmpty())
             return "'()";

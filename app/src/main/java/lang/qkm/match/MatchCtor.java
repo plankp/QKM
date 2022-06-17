@@ -15,6 +15,11 @@ public final class MatchCtor implements Match {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitMatchCtor(this);
+    }
+
+    @Override
     public Stream<String> getCaptures() {
         return this.args.stream().flatMap(Match::getCaptures);
     }

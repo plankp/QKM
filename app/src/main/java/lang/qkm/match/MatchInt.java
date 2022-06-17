@@ -13,6 +13,11 @@ public final class MatchInt implements Match {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitMatchInt(this);
+    }
+
+    @Override
     public Stream<String> getCaptures() {
         return Stream.empty();
     }

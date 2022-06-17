@@ -12,6 +12,11 @@ public final class MatchBool implements Match {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitMatchBool(this);
+    }
+
+    @Override
     public Stream<String> getCaptures() {
         return Stream.empty();
     }

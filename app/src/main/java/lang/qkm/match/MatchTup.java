@@ -14,6 +14,11 @@ public final class MatchTup implements Match {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitMatchTup(this);
+    }
+
+    @Override
     public Stream<String> getCaptures() {
         return this.elements.stream().flatMap(Match::getCaptures);
     }

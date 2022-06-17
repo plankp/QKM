@@ -24,6 +24,11 @@ public final class ECtor implements Expr {
     }
 
     @Override
+    public boolean isAtom() {
+        return this.args.isEmpty();
+    }
+
+    @Override
     public String toString() {
         if (this.args.isEmpty())
             return this.id;

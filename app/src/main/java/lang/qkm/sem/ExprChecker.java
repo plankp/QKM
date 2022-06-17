@@ -243,7 +243,6 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
         final List<Map.Entry<Match, Expr>> cases = new ArrayList<>(ctx.k.size());
-        final Map<EVar, Expr> jointPoints = new HashMap<>();
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
             final Typed<Match> m = p.visit(k.p);
@@ -287,7 +286,6 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         final Map<String, Type> old = this.env;
         final List<SList<Match>> patterns = new LinkedList<>();
         final List<Map.Entry<Match, Expr>> cases = new ArrayList<>(ctx.k.size());
-        final Map<EVar, Expr> jointPoints = new HashMap<>();
         for (final MatchCaseContext k : ctx.k) {
             final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
             final Typed<Match> m = p.visit(k.p);
@@ -326,9 +324,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         if (!Match.covers(patterns, SList.of(new Typed<>(new MatchAll(), v.type))))
             System.out.println("Non-exhaustive match pattern");
 
-        return new Result(
-                new ELetrec(jointPoints, new EMatch(v.expr, cases)),
-                res);
+        return new Result(new EMatch(v.expr, cases), res);
     }
 
     @Override

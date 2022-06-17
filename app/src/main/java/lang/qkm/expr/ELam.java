@@ -24,6 +24,11 @@ public final class ELam implements Expr {
     }
 
     @Override
+    public boolean isAtom() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         sb.append("(\\").append(this.arg);

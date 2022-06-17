@@ -19,6 +19,11 @@ public final class MatchAll implements Match {
     }
 
     @Override
+    public <R> R accept(Visitor<R> v) {
+        return v.visitMatchAll(this);
+    }
+
+    @Override
     public Stream<String> getCaptures() {
         return this.capture == null
                 ? Stream.empty()

@@ -385,6 +385,13 @@ public class ASTWalker implements Evaluator, Expr.Visitor<ASTWalker.Computation>
     }
 
     @Override
+    public Suspended visitELet(ELet e) {
+        final Map<EVar, Value> next = new HashMap<>(this.env);
+        next.put(e.bind, e.value.accept(this).force());
+        return new Suspended(next, e.body);
+    }
+
+    @Override
     public Suspended visitELetrec(ELetrec e) {
         final Map<EVar, Value> old = this.env;
         this.env = new HashMap<>(old);

@@ -16,6 +16,7 @@ public interface Expr {
         public R visitEVar(EVar e);
         public R visitELam(ELam e);
         public R visitEApp(EApp e);
+        public R visitELet(ELet e);
         public R visitELetrec(ELetrec e);
         public R visitEErr(EErr e);
     }
@@ -23,4 +24,8 @@ public interface Expr {
     public <R> R accept(Visitor<R> v);
 
     public Stream<EVar> fv();
+
+    public default boolean isAtom() {
+        return false;
+    }
 }

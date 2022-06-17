@@ -22,6 +22,11 @@ public final class EVar implements Expr {
     }
 
     @Override
+    public boolean isAtom() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return this.name;
     }

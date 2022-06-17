@@ -7,12 +7,12 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import lang.qkm.sem.ExprChecker;
-import lang.qkm.eval.ASTWalker;
+import lang.qkm.eval.*;
 
 public class App {
 
     public static void main(String[] args) {
-        final ExprChecker state = new ExprChecker(new ASTWalker());
+        final ExprChecker state = new ExprChecker(new ANFConverter(new MatchRewriter(new ANFConverter(new ASTWalker()))));
 
         try (final BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
             StringBuilder buffer = new StringBuilder();
