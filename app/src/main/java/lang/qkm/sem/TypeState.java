@@ -37,18 +37,17 @@ public final class TypeState {
         return p.eval(map);
     }
 
-    public Type gen(Type t, List<TyVar> quants) {
-        if (quants.isEmpty())
+    public static Type gen(Type t, Iterable<TyVar> quants) {
+        final Iterator<TyVar> it = quants.iterator();
+        if (!it.hasNext())
             // nothing to generalize, just expand the type
             return t.eval(Map.of());
 
-        final Iterator<TyVar> it = quants.iterator();
         final LinkedList<TyVar> args = new LinkedList<>();
         final Map<TyVar, TyVar> m = new HashMap<>();
         BigInteger id = null;
         for (;;) {
-            final String name = id == null ? "t" : "t" + id;
-            final TyVar arg = this.freshPoly(name);
+            final TyVar arg = TyVar.grounded(id == null ? "t" : "t" + id);
             args.push(arg);
             m.put(it.next(), arg);
 

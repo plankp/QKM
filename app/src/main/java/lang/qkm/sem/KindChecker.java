@@ -25,61 +25,19 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
         }
     }
 
-    private Map<String, Result> scope = new HashMap<>();
-    private Map<String, Type> ctors = new HashMap<>();
+    private Map<String, Result> typeCtors = new HashMap<>();
+    private Map<String, Type> dataCtors = new HashMap<>();
+
+    private boolean allowFreeTypes = true;
+    private Map<String, Result> env = new HashMap<>();
+    private Map<TyVar, Type> kinds = new HashMap<>();
 
     public Type getCtor(String name) {
-        return this.ctors.get(name);
+        return this.dataCtors.get(name);
     }
 
     public Map<String, Type> getCtors() {
-        return Collections.unmodifiableMap(this.ctors);
-    }
-
-    @Override
-    public Result visitDefType(DefTypeContext ctx) {
-        // type alias construct is not recursive!
-        final String name = ctx.n.getText();
-        Result type = this.visit(ctx.t);
-
-        final Iterator<TyVar> it = type.kind.fv().distinct().iterator();
-        while (it.hasNext())
-            it.next().unify(TyKind.VALUE);
-
-        type = new Result(type.type.eval(Map.of()), type.kind);
-        this.scope.put(name, type);
-        return type;
-    }
-
-    @Override
-    public Result visitTypePoly(TypePolyContext ctx) {
-        if (ctx.qs.isEmpty())
-            return this.visit(ctx.t);
-
-        final Map<String, Result> old = this.scope;
-        this.scope = new HashMap<>(old);
-
-        try {
-            final LinkedList<Result> args = new LinkedList<>();
-            for (final Token q : ctx.qs) {
-                final String name = q.getText();
-                final Result info = new Result(TyVar.grounded(name),
-                                               TyVar.unifiable(name));
-
-                args.push(info);
-                this.scope.put(name, info);
-            }
-
-            Result t = this.visit(ctx.t);
-            while (!args.isEmpty()) {
-                final Result arg = args.pop();
-                t = new Result(new TyPoly((TyVar) arg.type, t.type),
-                               new TyArr(arg.kind, t.kind));
-            }
-            return t;
-        } finally {
-            this.scope = old;
-        }
+        return Collections.unmodifiableMap(this.dataCtors);
     }
 
     @Override
@@ -87,7 +45,7 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
         Result res = this.visit(ctx.f);
         for (final Type0Context arg : ctx.args) {
             final Result k = this.visit(arg);
-            final Type v = TyVar.unifiable("_");
+            final Type v = TyVar.unifiable("?");
 
             res.kind.unify(new TyArr(k.kind, v));
             res = new Result(new TyApp(res.type, k.type), v.unwrap());
@@ -106,10 +64,34 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
         return new Result(new TyArr(p.type, q.type), TyKind.VALUE);
     }
 
+    private Result newGroundedType(String name) {
+        final TyVar t = TyVar.grounded(name);
+        final Type kind = TyVar.unifiable("?");
+        this.kinds.put(t, kind);
+        return new Result(t, kind);
+    }
+
+    @Override
+    public Result visitTypeIgnore(TypeIgnoreContext ctx) {
+        if (!this.allowFreeTypes)
+            throw new RuntimeException("Wildcard type not allowed here");
+
+        return this.newGroundedType("_");
+    }
+
     @Override
     public Result visitTypeName(TypeNameContext ctx) {
+        return this.env.computeIfAbsent(ctx.n.getText(), name -> {
+            if (!this.allowFreeTypes)
+                throw new RuntimeException("Free type " + name + " not allowed here");
+            return this.newGroundedType(name);
+        });
+    }
+
+    @Override
+    public Result visitTypeCtor(TypeCtorContext ctx) {
         final String name = ctx.n.getText();
-        final Result type = this.scope.get(name);
+        final Result type = this.typeCtors.get(name);
         if (type != null)
             return type;
 
@@ -157,6 +139,89 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
     }
 
     @Override
+    public Result visitTypePoly(TypePolyContext ctx) {
+        // keep track of a set of rigid types that should be monomorphic
+        //
+        // since we only create grounded type variables (never unifiable),
+        // it's impossible to have types escaping their scope.
+        final Set<TyVar> monomorphic = this.env.values().stream()
+                .filter(k -> k != null)
+                .flatMap(k -> k.type.fv())
+                .collect(Collectors.toSet());
+
+        // the quantifiers are just for scoping purposes, meaning
+        // a b. a -> a has kind * -> * instead of * -> * -> *
+        for (final Token q : ctx.qs) {
+            final String name = q.getText();
+            this.env.put(name, this.newGroundedType(name));
+        }
+
+        // generalize the type expression
+        final Result r = this.visit(ctx.t);
+        final Deque<TyVar> quants = r.type.fv()
+                .filter(tv -> !monomorphic.contains(tv))
+                .distinct()
+                .collect(Collectors.toCollection(ArrayDeque::new));
+
+        final Type t = TypeState.gen(r.type, quants);
+        Type kind = r.kind.unwrap();
+        final Iterator<TyVar> it = quants.descendingIterator();
+        while (it.hasNext())
+            kind = new TyArr(this.kinds.get(it.next()).unwrap(), kind);
+
+        // all unconstrainted kinds are set to *.
+        final Iterator<TyVar> unconstrainted = kind.fv().distinct().iterator();
+        while (unconstrainted.hasNext())
+            unconstrainted.next().unify(TyKind.VALUE);
+
+        return new Result(t, kind);
+    }
+
+    @Override
+    public Result visitDefType(DefTypeContext ctx) {
+        final Map<String, Result> old = this.env;
+        final boolean allowed = this.allowFreeTypes;
+        try {
+            this.env = new LinkedHashMap<>();
+
+            // Quantifiers here *do* contribute to the kind sigature, meaning
+            // type Foo a b = a has kind * -> * -> *.
+            for (Token q : ctx.qs) {
+                final String name = q.getText();
+                if (this.env.containsKey(name))
+                    throw new RuntimeException("Illegal duplicate quantifier " + name);
+
+                this.env.put(name, this.newGroundedType(name));
+            }
+
+            // type aliases are not recursive!
+            this.allowFreeTypes = false;
+            final Result r = this.visit(ctx.t);
+
+            Type t = r.type;
+            Type kind = r.kind;
+            final Iterator<Result> quants = new ArrayDeque<>(this.env.values()).descendingIterator();
+            while (quants.hasNext()) {
+                final Result q = quants.next();
+                t = new TyPoly((TyVar) q.type, t);
+                kind = new TyArr(q.kind, kind);
+            }
+
+            // all unconstrainted kinds are set to *.
+            final Iterator<TyVar> unconstrainted = kind.fv().distinct().iterator();
+            while (unconstrainted.hasNext())
+                unconstrainted.next().unify(TyKind.VALUE);
+
+            final Result result = new Result(t.eval(Map.of()), kind);
+            this.typeCtors.put(ctx.n.getText(), result);
+            return result;
+        } finally {
+            this.env = old;
+            this.allowFreeTypes = allowed;
+        }
+    }
+
+    @Override
     public Result visitDefData(DefDataContext ctx) {
         final Map<String, Map.Entry<Type, Map<String, Result>>> defs = new HashMap<>();
         for (final EnumDefContext d : ctx.d) {
@@ -168,8 +233,7 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
             final Map<String, Result> quants = new LinkedHashMap<>();
             for (final Token q : d.qs) {
                 final String quant = q.getText();
-                final Result info = new Result(TyVar.grounded(quant),
-                                               TyVar.unifiable(quant));
+                final Result info = this.newGroundedType(quant);
                 kargs.push((TyVar) info.kind);
                 if (quants.put(quant, info) != null)
                     throw new RuntimeException("Illegal duplicate quantifier name " + quant);
@@ -181,7 +245,7 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
             defs.put(name, Map.entry(t, quants));
         }
 
-        final Map<String, Result> augmented = new HashMap<>(this.scope);
+        final Map<String, Result> augmented = new HashMap<>(this.typeCtors);
         for (final EnumDefContext d : ctx.d) {
             final String name = d.n.getText();
             final Map.Entry<Type, Map<String, Result>> info = defs.get(name);
@@ -199,16 +263,19 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
             augmented.put(name, new Result(t, info.getKey()));
         }
 
-        final Map<String, Result> oldScope = this.scope;
-        final Map<String, Type> oldCtors = this.ctors;
-        this.ctors = new HashMap<>(oldCtors);
+        final Map<String, Result> oldTypeCtors = this.typeCtors;
+        final Map<String, Type> oldDataCtors = this.dataCtors;
+        final Map<String, Result> oldEnv = this.env;
+        final boolean oldAllowFreeTypes = this.allowFreeTypes;
+        this.dataCtors = new HashMap<>(oldDataCtors);
 
         try {
-            for (final EnumDefContext d : ctx.d) {
-                this.scope = new HashMap<>(augmented);
+            this.typeCtors = augmented;
+            this.allowFreeTypes = false;
 
+            for (final EnumDefContext d : ctx.d) {
                 final String name = d.n.getText();
-                this.scope.putAll(defs.get(name).getValue());
+                this.env = new HashMap<>(defs.get(name).getValue());
 
                 final List<TyVar> ctorQuants = new ArrayList<>();
                 Type info = augmented.get(name).type;
@@ -241,13 +308,16 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
                         t = new TyArr(args.get(i), t);
                     for (int i = ctorQuants.size(); i-- > 0; )
                         t = new TyPoly(ctorQuants.get(i), t);
-                    this.ctors.put(ctor, t);
+                    this.dataCtors.put(ctor, t);
                 }
             }
         } catch (Throwable ex) {
-            this.scope = oldScope;
-            this.ctors = oldCtors;
+            this.typeCtors = oldTypeCtors;
+            this.dataCtors = oldDataCtors;
             throw ex;
+        } finally {
+            this.allowFreeTypes = oldAllowFreeTypes;
+            this.env = oldEnv;
         }
 
         final Iterator<TyVar> it = defs.values().stream()
@@ -258,7 +328,6 @@ public final class KindChecker extends QKMBaseVisitor<KindChecker.Result> {
         while (it.hasNext())
             it.next().unify(TyKind.VALUE);
 
-        this.scope = augmented;
-        return this.scope.get(ctx.d.get(0).n.getText());
+        return this.typeCtors.get(ctx.d.get(0).n.getText());
     }
 }

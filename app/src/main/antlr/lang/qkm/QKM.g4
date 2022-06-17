@@ -62,6 +62,7 @@ fragment NAME
 
 IDENT   : NAME;
 CTOR    : '#' NAME;
+STYPE   : '\'' NAME;
 
 lines
     : line+
@@ -74,23 +75,25 @@ line
     | topExpr
     ;
 
-defType
-    : 'type' n=IDENT '=' t=typePoly
-    ;
-
-typePoly
-    : qs+=IDENT+ '.' t=type
-    | t=type
-    ;
-
 type
     : f=type0 args+=type0*              # TypeApply
     |<assoc=right> p=type '->' q=type   # TypeFunc
     ;
 
 type0
-    : n=IDENT                               # TypeName
+    : '_'                                   # TypeIgnore
+    | n=STYPE                               # TypeName
+    | n=IDENT                               # TypeCtor
     | '(' ((ts+=type ',')* ts+=type)? ')'   # TypeGroup
+    ;
+
+typePoly
+    : qs+=STYPE+ '.' t=type
+    | t=type
+    ;
+
+defType
+    : 'type' n=IDENT qs+=STYPE* '=' t=type
     ;
 
 defData
@@ -98,7 +101,7 @@ defData
     ;
 
 enumDef
-    : n=IDENT qs+=IDENT* '='
+    : n=IDENT qs+=STYPE* '='
         '|'? k+=enumCase ('|' k+=enumCase)*
     ;
 
