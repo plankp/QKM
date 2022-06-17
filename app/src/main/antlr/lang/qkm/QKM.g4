@@ -20,6 +20,7 @@ DATA    : 'data';
 AND     : 'and';
 MATCH   : 'match';
 WITH    : 'with';
+FMATCH  : 'function';
 FUN     : 'fun';
 LET     : 'let';
 IN      : 'in';
@@ -116,7 +117,8 @@ topExpr
 expr
     : f=expr0 args+=expr0*                              # ExprApply
     | 'let' b+=binding ('and' b+=binding)* 'in' e=expr  # ExprLetrec
-    | 'fun' '|'? k+=matchCase ('|' k+=matchCase)*       # ExprLambda
+    | 'fun' ps+=pattern0+ '->' e=expr                   # ExprFun
+    | 'function' '|'? k+=matchCase ('|' k+=matchCase)*  # ExprFunction
     | 'match' v=expr 'with'
         '|'? k+=matchCase ('|' k+=matchCase)*           # ExprMatch
     ;

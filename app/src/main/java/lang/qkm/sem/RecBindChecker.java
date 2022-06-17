@@ -117,7 +117,14 @@ public final class RecBindChecker extends QKMBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitExprLambda(ExprLambdaContext ctx) {
+    public Void visitExprFunction(ExprFunctionContext ctx) {
+        // let rec x = function p -> e
+        // e can definitely use x.
+        return null;
+    }
+
+    @Override
+    public Void visitExprFun(ExprFunContext ctx) {
         // let rec x = fun k -> e
         // e can definitely use x.
         return null;

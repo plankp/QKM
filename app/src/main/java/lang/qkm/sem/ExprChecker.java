@@ -231,11 +231,11 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
     }
 
     @Override
-    public Result visitExprLambda(ExprLambdaContext ctx) {
+    public Result visitExprFunction(ExprFunctionContext ctx) {
         final TyVar arg = this.state.freshType();
         final TyVar res = this.state.freshType();
 
-        // (fun p1 -> e1 | p2 -> e2 | ...) is desugared as follows:
+        // (function p1 -> e1 | p2 -> e2 | ...) is desugared as follows:
         // (\k. (match k (p1 e1) (p2 e2) ...))
         // where k is unique, but because shadowing rules are applied, so any
         // name that cannot exist in the source language will work
@@ -270,6 +270,44 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
         return new Result(
                 new ELam(desugared, new EMatch(desugared, cases)),
                 new TyArr(arg, res));
+    }
+
+    @Override
+    public Result visitExprFun(ExprFunContext ctx) {
+        // (fun p1 p2... -> e) is desugared as follows:
+        // (fun p1 -> fun p2... -> e) which becomes:
+        // (\k1. (match k1 (p1 (\k2. (match k2 (p2 ...e))))))
+
+        return this.exprFunHelper(ctx.ps, ctx.e);
+    }
+
+    private Result exprFunHelper(List<Pattern0Context> args, ExprContext e) {
+        final Pattern0Context arg = args.get(0);
+        final EVar desugared = new EVar("`1");
+
+        final PatternChecker p = new PatternChecker(this.state, this.kindChecker);
+        final Typed<Match> m = p.visit(arg);
+
+        final Map<String, Type> old = this.env;
+        try {
+            this.env = new HashMap<>(old);
+            this.env.putAll(p.getBindings());
+
+            final Result body = args.size() == 1
+                    ? this.visit(e)
+                    : this.exprFunHelper(args.subList(1, args.size()), e);
+
+            if (!Match.covers(List.of(SList.of(m.value)),
+                              SList.of(new Typed<>(new MatchAll(), m.type))))
+                System.out.println("Non-exhaustive match pattern");
+
+            final Map.Entry<Match, Expr> k = Map.entry(m.value, body.expr);
+            return new Result(
+                    new ELam(desugared, new EMatch(desugared, List.of(k))),
+                    new TyArr(m.type, body.type));
+        } finally {
+            this.env = old;
+        }
     }
 
     @Override
