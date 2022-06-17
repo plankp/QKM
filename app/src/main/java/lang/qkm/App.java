@@ -12,7 +12,9 @@ import lang.qkm.eval.*;
 public class App {
 
     public static void main(String[] args) {
-        final ExprChecker state = new ExprChecker(new ANFConverter(new MatchRewriter(new ANFConverter(new ASTWalker()))));
+        final ExprChecker state = new ExprChecker(new ExprPrinter(
+                new ANFConverter(new MatchRewriter(new ANFConverter(
+                    new ExprPrinter(new ASTWalker()))))));
 
         try (final BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
             StringBuilder buffer = new StringBuilder();

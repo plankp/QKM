@@ -142,11 +142,9 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
     }
 
     public Expr convert(Expr e) {
-System.out.println("Before :: " + e);
         e = e.accept(this);
         while (!this.seq.isEmpty())
             e = this.seq.pop().apply(e);
-System.out.println("After  :: " + e);
         return e;
     }
 
