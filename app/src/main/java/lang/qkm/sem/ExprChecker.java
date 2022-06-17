@@ -30,18 +30,13 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
     }
 
     private final TypeState state = new TypeState();
-    private final KindChecker kindChecker = new KindChecker();
     private final Evaluator exec;
 
     private Map<String, Type> env = new HashMap<>();
-    private BigInteger idLabel = BigInteger.ZERO;
+    private KindChecker kindChecker = new KindChecker();
 
     public ExprChecker(Evaluator exec) {
         this.exec = exec;
-    }
-
-    public EVar freshLabel() {
-        return new EVar("`j" + (this.idLabel = this.idLabel.add(BigInteger.ONE)));
     }
 
     @Override
@@ -112,6 +107,10 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
                     throw new RuntimeException("Illegal grounded type " + t + " would escape its scope");
 
             for (final BindingContext b : ctx.b) {
+                // if there's a type annotation attached, don't bother
+                if (b.t != null)
+                    continue;
+
                 final String name = b.n.getText();
                 final Type k = this.env.get(name);
                 final List<TyVar> quants = k.fv()
@@ -210,6 +209,10 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
                     throw new RuntimeException("Illegal grounded type " + t + " would escape its scope");
 
             for (final BindingContext b : ctx.b) {
+                // if there's a type annotation attached, don't bother
+                if (b.t != null)
+                    continue;
+
                 final String name = b.n.getText();
                 final Type k = this.env.get(name);
                 final List<TyVar> quants = k.fv()
