@@ -36,29 +36,23 @@ public final class MatchCompiler {
 
         if (allWildcard) {
             final Map.Entry<List<Match>, Expr> row = cases.get(0);
-            final Expr e = row.getValue();
-            final Map<String, Expr> captures = this.bindings.getOrDefault(e, Map.of());
+            Expr action = row.getValue();
+            final Map<String, Expr> captures = this.bindings.computeIfAbsent(action, k -> new HashMap<>());
 
-            // conservatively emit a match to make sure the variables are
-            // bound correctly.
-
-            final List<Expr> scrutinee = new ArrayList<>(input.size() + captures.size());
-            for (final Expr p : input)
-                scrutinee.add(p);
-
-            final List<Match> match = new ArrayList<>(input.size() + captures.size());
-            match.addAll(row.getKey());
-
-            for (final Map.Entry<String, Expr> capture : captures.entrySet()) {
-                match.add(new MatchAll(capture.getKey()));
-                scrutinee.add(capture.getValue());
+            // iterate the columns to make sure we are capturing if necessary
+            final Iterator<Expr> itInput = input.iterator();
+            final Iterator<Match> itMatch = row.getKey().iterator();
+            while (itInput.hasNext() && itMatch.hasNext()) {
+                final Expr scrutinee = itInput.next();
+                final MatchAll match = (MatchAll) itMatch.next();
+                if (match.capture != null)
+                    captures.put(match.capture, scrutinee);
             }
 
-            if (scrutinee.size() == 1)
-                return new EMatch(scrutinee.get(0),
-                                  List.of(Map.entry(match.get(0), e)));
+            for (final Map.Entry<String, Expr> pair : captures.entrySet())
+                action = new ELet(new EVar(pair.getKey()), pair.getValue(), action);
 
-            return new EMatch(new ETup(scrutinee), List.of(Map.entry(new MatchTup(match), e)));
+            return action;
         }
 
         final Expr scrutinee = input.get(column);
