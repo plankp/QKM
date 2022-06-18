@@ -151,16 +151,40 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
     @Override
     public Result visitExprApply(ExprApplyContext ctx) {
+        // data constructors are weird because even though they behave like
+        // functions, they are not functions... while we provide compiler
+        // magic to promote them into functions, this difference becomes
+        // apparent when it comes to constructing recursive...
+        final boolean isRawCtor = ctx.f instanceof ExprCtorContext;
+
         Result res = this.visit(ctx.f);
+        if (ctx.args.isEmpty())
+            return res;
+
+        final List<Expr> args = new ArrayList<>(ctx.args.size());
+        Type type = res.type;
         for (final Expr0Context arg : ctx.args) {
             final Result k = this.visit(arg);
             final Type v = this.state.freshType();
 
-            res.type.unify(new TyArr(k.type, v));
-            res = new Result(new EApp(res.expr, k.expr), v.unwrap());
+            type.unify(new TyArr(k.type, v));
+            type = v.unwrap();
+            args.add(k.expr);
         }
 
-        return res;
+        if (isRawCtor && type instanceof TyCtor) {
+            Expr k = res.expr;
+            while (k instanceof ELam)
+                k = ((ELam) k).body;
+
+            if (k instanceof ECtor)
+                return new Result(new ECtor(((ECtor) k).id, args), type);
+        }
+
+        Expr acc = res.expr;
+        for (final Expr arg : args)
+            acc = new EApp(acc, arg);
+        return new Result(acc, type);
     }
 
     @Override
