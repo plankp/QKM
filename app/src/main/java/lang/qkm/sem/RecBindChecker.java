@@ -2,220 +2,144 @@ package lang.qkm.sem;
 
 import java.util.*;
 import java.util.stream.*;
-import lang.qkm.QKMBaseVisitor;
-import static lang.qkm.QKMParser.*;
+import lang.qkm.expr.*;
 
-public final class RecBindChecker extends QKMBaseVisitor<Void> {
+public final class RecBindChecker {
 
-    private enum Position {
-        TAIL,
-        IMMEDIATE,
-        INTERMEDIATE;
+    // based on https://v2.ocaml.org/manual/letrecvalues.html
+
+    public void check(Map<EVar, Expr> defs) {
+        final Set<EVar> k = new HashSet<>(defs.keySet());
+        for (final Expr init : defs.values()) {
+            if (!new StaticallyConstructive(k).check(init)
+                    || new ImmediatelyLinked(k).check(init))
+                throw new RuntimeException("Illegal recursive binding initializer");
+        }
     }
 
-    private Set<String> recBinds = new HashSet<>();
-    private Position position = Position.INTERMEDIATE;
+    private static final class StaticallyConstructive extends ExprBaseVisitor<Object> {
 
-    @Override
-    public Void visitDefBind(DefBindContext ctx) {
-        for (final BindingContext b : ctx.b)
-            this.recBinds.add(b.n.getText());
-        for (final BindingContext b : ctx.b) {
-            this.position = Position.IMMEDIATE;
-            this.visit(b.e);
+        private Set<EVar> recBinds;
+
+        public StaticallyConstructive(Set<EVar> recBinds) {
+            this.recBinds = recBinds;
         }
 
-        return null;
-    }
+        public boolean check(Expr e) {
+            if (e.fv().noneMatch(this.recBinds::contains))
+                return true;
+            return e.accept(this) != null;
+        }
 
-    @Override
-    public Void visitExprLetrec(ExprLetrecContext ctx) {
-        final Position oldPosition = this.position;
-        final Set<String> oldRecBinds = this.recBinds;
-        this.recBinds = new HashSet<>(oldRecBinds);
+        @Override
+        public Object visitEVar(EVar e) {
+            return this;
+        }
 
-        try {
-            for (final BindingContext b : ctx.b)
-                this.recBinds.add(b.n.getText());
-            for (final BindingContext b : ctx.b) {
-                this.position = Position.IMMEDIATE;
-                this.visit(b.e);
+        @Override
+        public Object visitELam(ELam e) {
+            return this;
+        }
+
+        @Override
+        public Object visitETup(ETup e) {
+            for (final Expr element : e.elements)
+                if (!this.check(element))
+                    return false;
+            return this;
+        }
+
+        @Override
+        public Object visitECtor(ECtor e) {
+            for (final Expr arg : e.args)
+                if (!this.check(arg))
+                    return false;
+            return this;
+        }
+
+        @Override
+        public Object visitELet(ELet e) {
+            if (!this.check(e.value))
+                return false;
+
+            final boolean newBinding = this.recBinds.add(e.bind);
+            try {
+                return this.check(e.body);
+            } finally {
+                if (newBinding)
+                    this.recBinds.remove(e.bind);
             }
-        } finally {
-            this.position = oldPosition;
-            this.recBinds = oldRecBinds;
         }
 
-        this.visit(ctx.e);
-        return null;
+        @Override
+        public Object visitELetrec(ELetrec e) {
+            for (final Expr value : e.binds.values())
+                if (!this.check(value))
+                    return false;
+
+            final Set<EVar> old = this.recBinds;
+            this.recBinds = new HashSet<>(old);
+            try {
+                this.recBinds.addAll(e.binds.keySet());
+                return this.check(e.body);
+            } finally {
+                this.recBinds = old;
+            }
+        }
     }
 
-    @Override
-    public Void visitExprApply(ExprApplyContext ctx) {
-        if (ctx.args.isEmpty())
-            return this.visit(ctx.f);
+    private static final class ImmediatelyLinked extends ExprBaseVisitor<EVar> {
 
-        final Position oldPosition = this.position;
+        private Set<EVar> recBinds;
 
-        try {
-            if (!(ctx.f instanceof ExprCtorContext)) {
-                this.position = Position.INTERMEDIATE;
-                this.visit(ctx.f);
-            } else if (this.position == Position.IMMEDIATE)
-                // promote the position to handle cyclic data:
-                // data List a = #nil | #cons a (List a)
-                // let x = #cons 1 x
-                //
-                // note that we don't handle `(#cons) 1 x` due to implicit
-                // ctor promotion to a partially applied function.
-                this.position = Position.TAIL;
-
-            for (final Expr0Context arg : ctx.args)
-                this.visit(arg);
-        } finally {
-            this.position = oldPosition;
+        public ImmediatelyLinked(Set<EVar> recBinds) {
+            this.recBinds = recBinds;
         }
 
-        return null;
-    }
-
-    @Override
-    public Void visitExprIdent(ExprIdentContext ctx) {
-        if (!this.recBinds.contains(ctx.n.getText()))
-            return null;
-
-        // only tail position constructs can reference recursive bindings.
-        if (this.position == Position.TAIL)
-            return null;
-
-        throw new RuntimeException("Illegal use of recursive binding");
-    }
-
-    @Override
-    public Void visitExprCtor(ExprCtorContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitExprTrue(ExprTrueContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitExprFalse(ExprFalseContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitExprChar(ExprCharContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitExprText(ExprTextContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitExprFunction(ExprFunctionContext ctx) {
-        // let rec x = function p -> e
-        // e can definitely use x.
-        return null;
-    }
-
-    @Override
-    public Void visitExprFun(ExprFunContext ctx) {
-        // let rec x = fun k -> e
-        // e can definitely use x.
-        return null;
-    }
-
-    @Override
-    public Void visitExprGroup(ExprGroupContext ctx) {
-        if (ctx.es.size() == 1)
-            return this.visit(ctx.es.get(0));
-
-        // this is a tuple constructor, meaning it can also be cyclic (though
-        // it usually fails during type checking)
-        final Position oldPosition = this.position;
-        if (this.position == Position.IMMEDIATE)
-            this.position = Position.TAIL;
-
-        try {
-            for (final ExprContext e : ctx.es)
-                this.visit(e);
-        } finally {
-            this.position = oldPosition;
+        public boolean check(Expr e) {
+            return e.accept(this) != null;
         }
 
-        return null;
-    }
-
-    @Override
-    public Void visitExprMatch(ExprMatchContext ctx) {
-        final Position oldPosition = this.position;
-
-        try {
-            this.position = Position.INTERMEDIATE;
-            this.visit(ctx.v);
-        } finally {
-            this.position = oldPosition;
+        @Override
+        public EVar visitEVar(EVar e) {
+            return this.recBinds.contains(e) ? e : null;
         }
 
-        for (final MatchCaseContext k : ctx.k)
-            this.visit(k);
+        @Override
+        public EVar visitELet(ELet e) {
+            final boolean newBinding = this.recBinds.add(e.bind);
+            final EVar link;
+            try {
+                link = e.body.accept(this);
+            } finally {
+                if (newBinding)
+                    this.recBinds.remove(e.bind);
+            }
 
-        return null;
-    }
+            if (link == null || !link.equals(e.bind))
+                return link;
 
-    @Override
-    public Void visitMatchCase(MatchCaseContext ctx) {
-        final Set<String> old = this.recBinds;
-        this.recBinds = new HashSet<>(old);
-
-        try {
-            this.visit(ctx.p);
-            this.visit(ctx.e);
-        } finally {
-            this.recBinds = old;
+            // let xname1 = expr1 in expr0      (expr0 is linked to xname1)
+            // need to check if expr1 is linked to name (the outer context).
+            return e.value.accept(this);
         }
 
-        return null;
-    }
+        @Override
+        public EVar visitELetrec(ELetrec e) {
+            final Set<EVar> old = this.recBinds;
+            this.recBinds = new HashSet<>();
+            final EVar link;
+            try {
+                link = e.body.accept(this);
+            } finally {
+                this.recBinds = old;
+            }
 
-    @Override
-    public Void visitPatIgnore(PatIgnoreContext ctx) {
-        return null;
-    }
+            if (link == null)
+                return null;
 
-    @Override
-    public Void visitPatBind(PatBindContext ctx) {
-        // binding gets shadowed, so whatever was there can't possibly be
-        // reference anymore.
-        this.recBinds.remove(ctx.n.getText());
-        return null;
-    }
-
-    @Override
-    public Void visitPatTrue(PatTrueContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitPatChar(PatCharContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitPatText(PatTextContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitPatGroup(PatGroupContext ctx) {
-        for (final PatternContext p : ctx.ps)
-            this.visit(p);
-
-        return null;
+            final Expr init = e.binds.get(link);
+            return init == null ? link : init.accept(this);
+        }
     }
 }

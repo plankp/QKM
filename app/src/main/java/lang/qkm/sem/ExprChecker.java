@@ -133,7 +133,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
             // make sure the recursive binding is well-formed (example of
             // something illegal is let x = x in ...)
-            new RecBindChecker().visit(ctx);
+            new RecBindChecker().check(bindings);
             this.exec.define(bindings);
             return null;
         } catch (Throwable ex) {
@@ -245,7 +245,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
 
             // make sure the recursive binding is well-formed (example of
             // something illegal is let x = x in ...)
-            new RecBindChecker().visit(ctx);
+            new RecBindChecker().check(bindings);
             final Result r = this.visit(ctx.e);
             return new Result(new ELetrec(bindings, r.expr), r.type);
         } finally {
