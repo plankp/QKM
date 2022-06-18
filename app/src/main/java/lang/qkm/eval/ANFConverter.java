@@ -24,7 +24,7 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
 
         @Override
         public Expr apply(Expr e) {
-            if (!(this.value instanceof ELet || this.value instanceof EMatch))
+            if (!(this.value instanceof EMatch))
                 return new ELet(this.name, this.value, e);
 
             // let v = match s with m -> e in Q v =>
