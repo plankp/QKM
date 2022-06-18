@@ -19,7 +19,7 @@ public final class TyArr implements Type {
         final TyVar a = new TyVar();
         final TyVar b = new TyVar();
 
-        final TyPoly p = new TyPoly(a, new TyPoly(b, new TyApp(a, b)));
+        final TyPoly p = new TyPoly(a, new TyPoly(b, new TyArr(a, b)));
         return new TyApp(new TyApp(p, this.arg), this.ret);
     }
 
