@@ -176,7 +176,7 @@ public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
         final Typed<Match> p = this.visit(ctx.p);
         final KindChecker.Result r = this.kindChecker.visit(ctx.t);
         r.kind.unify(TyKind.VALUE);
-        r.type.unify(p.type);
+        r.type.eval(Map.of()).unify(p.type);
 
         return p;
     }
