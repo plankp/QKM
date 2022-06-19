@@ -6,6 +6,10 @@ import lang.qkm.match.*;
 
 public interface ExprRewriter extends Expr.Visitor<Expr> {
 
+    public default Expr rewrite(Expr e) {
+        return e.accept(this);
+    }
+
     @Override
     public default Expr visitEBool(EBool e) {
         return e;

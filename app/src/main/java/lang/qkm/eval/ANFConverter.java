@@ -5,7 +5,7 @@ import java.util.*;
 import lang.qkm.expr.*;
 import lang.qkm.match.*;
 
-public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.Visitor<Match> {
+public final class ANFConverter implements ExprRewriter, Match.Visitor<Match> {
 
     private interface BindingInfo {
 
@@ -137,31 +137,12 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
         }
     }
 
-    public final Evaluator core;
-
     private BigInteger id = BigInteger.ZERO;
     private Map<String, String> mapping = new HashMap<>();
     private Deque<BindingInfo> seq = new ArrayDeque<>();
 
-    public ANFConverter(Evaluator core) {
-        this.core = core;
-    }
-
     @Override
-    public void define(Map<EVar, Expr> defs) {
-        final Map<EVar, Expr> m = new HashMap<>();
-        for (final Map.Entry<EVar, Expr> pair : defs.entrySet())
-            m.put(pair.getKey(), this.convert(pair.getValue()));
-
-        this.core.define(m);
-    }
-
-    @Override
-    public void eval(Expr e) {
-        this.core.eval(this.convert(e));
-    }
-
-    public Expr convert(Expr e) {
+    public Expr rewrite(Expr e) {
         e = e.accept(this);
         while (!this.seq.isEmpty())
             e = this.seq.pop().apply(e);
@@ -184,11 +165,6 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
     }
 
     @Override
-    public Expr visitEBool(EBool e) {
-        return e;
-    }
-
-    @Override
     public Expr visitECtor(ECtor e) {
         if (e.args.isEmpty())
             return e;
@@ -198,16 +174,6 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
             args.add(this.rewriteAtom(arg));
 
         return new ECtor(e.id, args);
-    }
-
-    @Override
-    public Expr visitEInt(EInt e) {
-        return e;
-    }
-
-    @Override
-    public Expr visitEString(EString e) {
-        return e;
     }
 
     @Override
@@ -233,7 +199,7 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
             this.mapping = new HashMap<>(old);
             this.seq = new ArrayDeque<>();
             final Match m = k.getKey().accept(this);
-            final Expr body = this.convert(k.getValue());
+            final Expr body = this.rewrite(k.getValue());
             cases.add(Map.entry(m, body));
         }
 
@@ -258,7 +224,7 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
         this.mapping.put(e.arg.name, newMapping);
         final Deque<BindingInfo> outer = this.seq;
         this.seq = new ArrayDeque<>();
-        final Expr body = this.convert(e.body);
+        final Expr body = this.rewrite(e.body);
 
         this.seq = outer;
         this.mapping.put(e.arg.name, oldMapping);
@@ -299,7 +265,7 @@ public final class ANFConverter implements Evaluator, Expr.Visitor<Expr>, Match.
         for (final Map.Entry<EVar, Expr> bind : e.binds.entrySet()) {
             final EVar name = new EVar(this.mapping.get(bind.getKey().name));
             this.seq = new ArrayDeque<>();
-            final Expr init = this.convert(bind.getValue());
+            final Expr init = this.rewrite(bind.getValue());
 
             binds.put(name, init);
         }

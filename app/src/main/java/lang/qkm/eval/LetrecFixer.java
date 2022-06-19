@@ -4,31 +4,7 @@ import java.util.*;
 import java.util.stream.*;
 import lang.qkm.expr.*;
 
-public final class LetrecFixer implements Evaluator, ExprRewriter {
-
-    public final Evaluator core;
-
-    public LetrecFixer(Evaluator core) {
-        this.core = core;
-    }
-
-    @Override
-    public void define(Map<EVar, Expr> defs) {
-        final Map<EVar, Expr> m = new HashMap<>();
-        for (final Map.Entry<EVar, Expr> pair : defs.entrySet())
-            m.put(pair.getKey(), this.rewrite(pair.getValue()));
-
-        this.core.define(m);
-    }
-
-    @Override
-    public void eval(Expr e) {
-        this.core.eval(this.rewrite(e));
-    }
-
-    public Expr rewrite(Expr e) {
-        return e.accept(this);
-    }
+public final class LetrecFixer implements ExprRewriter {
 
     @Override
     public Expr visitELetrec(ELetrec e) {
