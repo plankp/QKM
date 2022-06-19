@@ -151,12 +151,13 @@ pattern
     ;
 
 patDecons
-    : k=CTOR args+=pattern0*
+    : k=CTOR args+=pattern0+
     ;
 
 pattern0
     : '_'                                       # PatIgnore
     | n=IDENT                                   # PatBind
+    | k=CTOR                                    # PatCtor
     | TRUE                                      # PatTrue
     | FALSE                                     # PatFalse
     | ('+' | '-')? INT                          # PatInt

@@ -33,19 +33,14 @@ public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
 
         Type acc = this.state.inst(scheme);
 
-        final List<Match> args;
-        if (ctx.args.isEmpty())
-            args = List.of();
-        else {
-            args = new ArrayList<>(ctx.args.size());
-            for (final Pattern0Context arg : ctx.args) {
-                final Typed<Match> m = this.visit(arg);
-                args.add(m.value);
+        final List<Match> args = new ArrayList<>(ctx.args.size());
+        for (final Pattern0Context arg : ctx.args) {
+            final Typed<Match> m = this.visit(arg);
+            args.add(m.value);
 
-                final TyVar res = this.state.freshType();
-                acc.unify(new TyArr(m.type, res));
-                acc = res.unwrap();
-            }
+            final TyVar res = this.state.freshType();
+            acc.unify(new TyArr(m.type, res));
+            acc = res.unwrap();
         }
 
         if (acc instanceof TyCtor)
@@ -67,6 +62,20 @@ public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
             throw new RuntimeException("Illegal duplicate binding " + name + " within the same pattern");
 
         return new Typed<>(new MatchAll(name), type);
+    }
+
+    @Override
+    public Typed<Match> visitPatCtor(PatCtorContext ctx) {
+        final String ctor = ctx.k.getText();
+        final Type scheme = this.kindChecker.getCtor(ctor);
+        if (scheme == null)
+            throw new RuntimeException("Illegal use of undeclared constructor " + ctor);
+
+        Type acc = this.state.inst(scheme);
+        if (acc instanceof TyCtor)
+            return new Typed<>(new MatchCtor(ctor, List.of()), acc);
+
+        throw new RuntimeException("Illegal incomplete constructor application");
     }
 
     @Override
