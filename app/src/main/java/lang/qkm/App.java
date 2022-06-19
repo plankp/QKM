@@ -20,6 +20,8 @@ public class App {
                 new MatchRewriter(),
                 new ANFConverter(),
                 new LetrecFixer(),
+                new ANFConverter(),
+                new PartialEvaluator(),
                 new ANFConverter()));
         eval = new ExprPrinter(eval);
         final ExprChecker state = new ExprChecker(eval);
