@@ -2,8 +2,9 @@ package lang.qkm.type;
 
 import java.util.*;
 import java.util.stream.*;
+import lang.qkm.match.CtorSet;
 
-public enum TyString implements Type {
+public enum TyString implements Type, CtorSet {
 
     INSTANCE;
 
@@ -42,7 +43,32 @@ public enum TyString implements Type {
     }
 
     @Override
+    public CtorSet getCtorSet() {
+        return this;
+    }
+
+    @Override
     public String toString() {
         return "string";
+    }
+
+    @Override
+    public Optional<Boolean> sameSize(int sz) {
+        return Optional.of(false);
+    }
+
+    @Override
+    public boolean spannedBy(Collection<?> c) {
+        return false;
+    }
+
+    @Override
+    public List<? extends Type> getArgs(Object id) {
+        return List.of();
+    }
+
+    @Override
+    public boolean isComplete() {
+        return false;
     }
 }

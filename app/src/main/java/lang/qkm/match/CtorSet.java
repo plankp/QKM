@@ -38,4 +38,14 @@ public interface CtorSet {
      * @return types of the argument
      */
     public List<? extends Type> getArgs(Object id);
+
+    /**
+     * By default assumes the set is complete (like booleans) where there are
+     * finite number of poossible constructors.
+     *
+     * @return if it is a complete set (e.g. booleans) or not (e.g. strings)
+     */
+    public default boolean isComplete() {
+        return true;
+    }
 }
