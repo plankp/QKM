@@ -82,6 +82,94 @@ public final class MatchChecker {
         }
     }
 
+    public static SList<String> missingMatch(List<SList<Match>> ps, SList<Type> qs) {
+        if (ps.isEmpty()) {
+            if (qs.isEmpty())
+                return SList.empty();
+
+            SList<String> list = SList.empty();
+            for (SList<?> k = qs; k.nonEmpty(); k = k.tail())
+                list = list.prepend("_");
+            return list;
+        }
+        if (qs.isEmpty())
+            return null;
+
+        final Type q = qs.head();
+        final CtorSet range = q.getCtorSet();
+        if (range == null) {
+            final SList<String> result = missingMatch(defaulted(ps), qs.tail());
+            return result == null ? null : result.prepend("_");
+        }
+
+        Set<? extends Object> ctors = null;
+        boolean spans = false;
+
+        if (range.isComplete()) {
+            ctors = firstCtors(ps);
+
+            final Optional<Boolean> fastPath;
+            if (ctors.size() < Integer.MAX_VALUE
+                    && (fastPath = range.sameSize(ctors.size())).isPresent())
+                spans = fastPath.get();
+            else
+                spans = range.missingCase(ctors) == null;
+        }
+
+        if (!spans) {
+            final SList<String> result = missingMatch(defaulted(ps), qs.tail());
+            if (result == null)
+                return null;
+
+            final Object missing = range.missingCase(firstCtors(ps));
+            final List<?> args = range.getArgs(missing);
+            if (args.isEmpty())
+                return result.prepend(missing.toString());
+
+            final StringBuilder sb = new StringBuilder();
+            sb.append(missing);
+            for (final Object arg : args)
+                sb.append(" _");
+            return result.prepend(sb.toString());
+        }
+
+        // regardless of if all possible constructors appear at least
+        // once, we need to specialize against it.
+        for (final Object ctor : ctors) {
+            final List<? extends Type> argTys = range.getArgs(ctor);
+            final List<? extends Match> argMs = argTys.stream()
+                    .map(k -> new MatchAll())
+                    .collect(Collectors.toList());
+
+            final List<SList<Match>> subPs = specialized(ps, ctor, argMs);
+            final SList<Type> subQs = qs.tail().prependAll(argTys);
+            SList<String> result = missingMatch(subPs, subQs);
+            if (result == null)
+                // this one is exhaustive, try another one
+                continue;
+
+            final StringBuilder sb = new StringBuilder();
+            if (ctor == TyTup.class) {
+                for (final Type arg : argTys) {
+                    sb.append(", ").append(result.head());
+                    result = result.tail();
+                }
+                sb.replace(0, 2, "(").append(')');
+            } else {
+                sb.append(ctor);
+                for (final Type arg : argTys) {
+                    sb.append(" (").append(result.head()).append(')');
+                    result = result.tail();
+                }
+            }
+
+            return result.prepend(sb.toString());
+        }
+
+        // reaching here means it was exhaustive
+        return null;
+    }
+
     public static Set<? extends Object> firstCtors(List<SList<Match>> cases) {
         return cases.stream()
                 .map(SList::head)

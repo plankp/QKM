@@ -311,8 +311,9 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             }
         }
 
-        if (!MatchChecker.covers(patterns, SList.of(new Typed<>(new MatchAll(), arg))))
-            System.out.println("Non-exhaustive match pattern");
+        final SList<String> missing = MatchChecker.missingMatch(patterns, SList.of(arg));
+        if (missing != null)
+            System.out.println("Missing pattern for: " + missing.head());
 
         return new Result(
                 new ELam(desugared, new EMatch(desugared, cases)),
@@ -344,10 +345,11 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
                     ? this.visit(e)
                     : this.exprFunHelper(args.subList(1, args.size()), e);
 
-            if (!MatchChecker.covers(
-                        List.of(SList.of(m.value)),
-                        SList.of(new Typed<>(new MatchAll(), m.type))))
-                System.out.println("Non-exhaustive match pattern");
+            final SList<String> missing = MatchChecker.missingMatch(
+                    List.of(SList.of(m.value)),
+                    SList.of(m.type));
+            if (missing != null)
+                System.out.println("Missing pattern for: " + missing.head());
 
             final Map.Entry<Match, Expr> k = Map.entry(m.value, body.expr);
             return new Result(
@@ -407,8 +409,9 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             }
         }
 
-        if (!MatchChecker.covers(patterns, SList.of(new Typed<>(new MatchAll(), v.type))))
-            System.out.println("Non-exhaustive match pattern");
+        final SList<String> missing = MatchChecker.missingMatch(patterns, SList.of(v.type));
+        if (missing != null)
+            System.out.println("Missing pattern for: " + missing.head());
 
         return new Result(new EMatch(v.expr, cases), res);
     }
