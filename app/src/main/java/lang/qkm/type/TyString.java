@@ -58,8 +58,22 @@ public enum TyString implements Type, CtorSet {
     }
 
     @Override
-    public boolean spannedBy(Collection<?> c) {
-        return false;
+    public Object missingCase(Collection<?> c) {
+        // since it's impossible to span all strings, we just focus on
+        // generating a string that is not in the set.
+
+        if (!c.contains(""))
+            return "\"\"";
+
+        final StringBuilder sb = new StringBuilder();
+        sb.append('*');
+        for (;;) {
+            final String s = sb.toString();
+            if (!c.contains(s))
+                return '"' + s + '"';
+
+            sb.append('*');
+        }
     }
 
     @Override

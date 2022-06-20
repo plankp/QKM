@@ -124,8 +124,12 @@ public final class TyCtor implements Type, CtorSet {
     }
 
     @Override
-    public boolean spannedBy(Collection<?> c) {
-        return c.containsAll(this.template.cases.keySet());
+    public Object missingCase(Collection<?> c) {
+        for (final String k : this.template.cases.keySet())
+            if (!c.contains(k))
+                return k;
+
+        return null;
     }
 
     @Override

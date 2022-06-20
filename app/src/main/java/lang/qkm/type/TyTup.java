@@ -99,8 +99,8 @@ public final class TyTup implements Type, CtorSet {
     }
 
     @Override
-    public boolean spannedBy(Collection<?> c) {
-        return c.contains(TyTup.class);
+    public Object missingCase(Collection<?> c) {
+        return c.contains(TyTup.class) ? null : TyTup.class;
     }
 
     @Override

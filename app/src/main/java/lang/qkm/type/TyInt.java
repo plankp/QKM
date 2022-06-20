@@ -99,7 +99,7 @@ public final class TyInt implements Type, CtorSet {
     }
 
     @Override
-    public boolean spannedBy(Collection<?> c) {
+    public Object missingCase(Collection<?> c) {
         // literally iterate through all possible *signed* integer values and
         // see if the supplied collection contains all of them.
         final BigInteger max = BigInteger.ONE.shiftLeft(this.bits - 1);
@@ -107,10 +107,10 @@ public final class TyInt implements Type, CtorSet {
         BigInteger i = max.negate();
         for (;;) {
             if (!c.contains(i))
-                return false;
+                return i;
             i = i.add(BigInteger.ONE);
             if (max.equals(i))
-                return true;
+                return null;
         }
     }
 

@@ -58,8 +58,10 @@ public enum TyBool implements Type, CtorSet {
     }
 
     @Override
-    public boolean spannedBy(Collection<?> c) {
-        return c.contains(true) && c.contains(false);
+    public Object missingCase(Collection<?> c) {
+        final Set<Boolean> k = new HashSet<>(List.of(true, false));
+        k.removeAll(c);
+        return k.isEmpty() ? null : k.iterator().next();
     }
 
     @Override

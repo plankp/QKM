@@ -30,9 +30,4 @@ public interface Match {
     public default Match toWildcard(Supplier<? extends Match> gen) {
         return this;
     }
-
-    public static boolean covers(List<SList<Match>> ps, SList<Typed<Match>> qs) {
-        final MatchChecker k = new MatchChecker();
-        return !k.useful(ps, qs);
-    }
 }

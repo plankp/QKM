@@ -295,7 +295,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             final Typed<Match> m = p.visit(k.p);
             arg.unify(m.type);
 
-            if (Match.covers(patterns, SList.of(m)))
+            if (MatchChecker.covers(patterns, SList.of(m)))
                 System.out.println("Useless match pattern");
             patterns.add(SList.of(m.value));
 
@@ -311,7 +311,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             }
         }
 
-        if (!Match.covers(patterns, SList.of(new Typed<>(new MatchAll(), arg))))
+        if (!MatchChecker.covers(patterns, SList.of(new Typed<>(new MatchAll(), arg))))
             System.out.println("Non-exhaustive match pattern");
 
         return new Result(
@@ -344,8 +344,9 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
                     ? this.visit(e)
                     : this.exprFunHelper(args.subList(1, args.size()), e);
 
-            if (!Match.covers(List.of(SList.of(m.value)),
-                              SList.of(new Typed<>(new MatchAll(), m.type))))
+            if (!MatchChecker.covers(
+                        List.of(SList.of(m.value)),
+                        SList.of(new Typed<>(new MatchAll(), m.type))))
                 System.out.println("Non-exhaustive match pattern");
 
             final Map.Entry<Match, Expr> k = Map.entry(m.value, body.expr);
@@ -376,7 +377,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             final Typed<Match> m = p.visit(k.p);
             v.type.unify(m.type);
 
-            if (Match.covers(patterns, SList.of(m)))
+            if (MatchChecker.covers(patterns, SList.of(m)))
                 System.out.println("Useless match pattern");
             patterns.add(SList.of(m.value));
 
@@ -406,7 +407,7 @@ public final class ExprChecker extends QKMBaseVisitor<ExprChecker.Result> {
             }
         }
 
-        if (!Match.covers(patterns, SList.of(new Typed<>(new MatchAll(), v.type))))
+        if (!MatchChecker.covers(patterns, SList.of(new Typed<>(new MatchAll(), v.type))))
             System.out.println("Non-exhaustive match pattern");
 
         return new Result(new EMatch(v.expr, cases), res);

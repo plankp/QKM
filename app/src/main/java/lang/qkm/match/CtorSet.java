@@ -24,13 +24,12 @@ public interface CtorSet {
 
     /**
      * Checks if the supplied collection contains all possible constructors of
-     * this type (thereby spanning).
+     * this type, thereby spanning. If it spans, then return null. Otherwise,
+     * return one example of such missing case.
      *
-     * @param c supplied collection that contains only valid constructors
-     *
-     * @return if it spans
+     * @return one example of a missing (valid) constructor or null if spans.
      */
-    public boolean spannedBy(Collection<?> c);
+    public Object missingCase(Collection<?> c);
 
     /**
      * @param id a valid constructor
