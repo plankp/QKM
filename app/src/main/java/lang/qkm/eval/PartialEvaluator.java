@@ -9,22 +9,15 @@ public final class PartialEvaluator implements ExprRewriter {
     private Map<EVar, Map.Entry<Expr, Boolean>> valueTable = new HashMap<>();
 
     public boolean shouldPropagate(Expr e) {
+        while (e instanceof ELam)
+            e = ((ELam) e).body;
+
         return e instanceof EVar
             || e instanceof EBool
             || e instanceof EInt
             || e instanceof EString
-            || e instanceof ETup && ((ETup) e).elements.isEmpty()
-            || e instanceof ECtor && ((ECtor) e).args.isEmpty();
-    }
-
-    public boolean isSimpleValue(Expr e) {
-        return e.isAtom()
             || e instanceof ETup
             || e instanceof ECtor;
-    }
-
-    public boolean isTupOrCtor(Expr e) {
-        return e instanceof ETup || e instanceof ECtor;
     }
 
     @Override
@@ -34,7 +27,7 @@ public final class PartialEvaluator implements ExprRewriter {
             final Map.Entry<Expr, Boolean> oldValue = this.valueTable.get(e.bind);
             try {
                 boolean shouldInline = shouldPropagate(value);
-                if (!shouldInline && isSimpleValue(value))
+                if (!shouldInline && value.isAtom())
                     // for certain larger values, inline them anyway
                     shouldInline = !e.body.fv()
                             .filter(e.bind::equals)
@@ -85,12 +78,7 @@ public final class PartialEvaluator implements ExprRewriter {
         if (expr instanceof EMatch) {
             // try to avoid the match completely
             final EMatch match = (EMatch) expr;
-            Expr scrutinee = match.scrutinee;
-            if (scrutinee instanceof EVar) {
-                final Map.Entry<Expr, ?> pair = this.valueTable.get(scrutinee);
-                if (pair != null && isTupOrCtor(pair.getKey()))
-                    scrutinee = pair.getKey();
-            }
+            final Expr scrutinee = match.scrutinee;
 
             List<? extends Expr> inputs = List.of();
             List<Match> matches = null;
