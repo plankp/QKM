@@ -18,7 +18,7 @@ public final class MatchCompiler {
 
     public Expr compile(Expr scrutinee, List<Map.Entry<Match, Expr>> cases) {
         return this.compile(List.of(scrutinee), cases.stream()
-                .map(p -> Map.entry(List.of(p.getKey()), p.getValue()))
+                .map(p -> Map.entry(List.of(p.getKey().simplify()), p.getValue()))
                 .collect(Collectors.toList()));
     }
 
@@ -55,6 +55,8 @@ public final class MatchCompiler {
             return action;
         }
 
+        // deal with or patterns by expanding them.
+        cases = flatten(cases, column);
         final Expr scrutinee = input.get(column);
 
         final Map<Object, Match> ctors = new HashMap<>();
@@ -85,6 +87,32 @@ public final class MatchCompiler {
         newCases.add(Map.entry(guard, this.compile(newInput, this.defaulted(cases, column, scrutinee))));
 
         return new EMatch(scrutinee, newCases);
+    }
+
+    private List<Map.Entry<List<Match>, Expr>> flatten(List<Map.Entry<List<Match>, Expr>> cases, int column) {
+        for (;;) {
+            boolean retry = false;
+            final List<Map.Entry<List<Match>, Expr>> result = new ArrayList<>(cases.size());
+            for (final Map.Entry<List<Match>, Expr> k : cases) {
+                final List<Match> row = k.getKey();
+                final Match m = row.get(column);
+                if (!(m instanceof MatchOr))
+                    result.add(k);
+                else {
+                    retry = true;
+                    for (final Match expansion : ((MatchOr) m).submatches) {
+                        final List<Match> copy = new ArrayList<>(row);
+                        copy.set(column, expansion);
+                        result.add(Map.entry(copy, k.getValue()));
+                    }
+                }
+            }
+
+            if (!retry)
+                return result;
+
+            cases = result;
+        }
     }
 
     private List<Map.Entry<List<Match>, Expr>> specialize(List<Map.Entry<List<Match>, Expr>> cases, int column, Match node, Expr scrutinee) {

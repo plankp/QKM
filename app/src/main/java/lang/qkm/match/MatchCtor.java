@@ -42,6 +42,16 @@ public final class MatchCtor implements Match {
     }
 
     @Override
+    public Match simplify() {
+        if (this.args.isEmpty())
+            return this;
+
+        return new MatchCtor(this.ctor, this.args.stream()
+                .map(Match::simplify)
+                .collect(Collectors.toList()));
+    }
+
+    @Override
     public String toString() {
         if (this.args.isEmpty())
             return this.ctor;

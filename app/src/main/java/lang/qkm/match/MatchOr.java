@@ -34,6 +34,24 @@ public final class MatchOr implements Match {
     }
 
     @Override
+    public Match simplify() {
+        // (_ | ...) => _
+        // (p1 | p2 | ... | _ | ...) => (p1 | p2 | ... | _)
+        final SList.Builder<Match> builder = new SList.Builder<>();
+        for (Match m : submatches) {
+            m = m.simplify();
+            builder.addLast(m);
+            if (m instanceof MatchAll)
+                break;
+        }
+
+        final SList<Match> simplified = builder.build();
+        return simplified.tail().isEmpty()
+                ? simplified.head()
+                : new MatchOr(simplified);
+    }
+
+    @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         sb.append('(').append(this.submatches.head());

@@ -41,6 +41,28 @@ public final class MatchTup implements Match {
     }
 
     @Override
+    public Match simplify() {
+        if (this.elements.isEmpty())
+            return this;
+
+        boolean captureless = true;
+        final List<Match> result = new ArrayList<Match>(this.elements.size());
+        for (Match m : this.elements) {
+            m = m.simplify();
+            result.add(m);
+            captureless &= m instanceof MatchAll && ((MatchAll) m).capture == null;
+        }
+
+        if (captureless)
+            // safe because
+            // 1.  there are no captures
+            // 2.  tuples only have one constructor
+            return new MatchAll();
+
+        return new MatchTup(result);
+    }
+
+    @Override
     public String toString() {
         if (this.elements.isEmpty())
             return "()";

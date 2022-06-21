@@ -31,4 +31,8 @@ public interface Match {
     public default Match toWildcard(Supplier<? extends Match> gen) {
         return this;
     }
+
+    public default Match simplify() {
+        return this;
+    }
 }
