@@ -146,12 +146,9 @@ expr0
     ;
 
 pattern
-    : patDecons
-    | pattern0
-    ;
-
-patDecons
-    : k=CTOR args+=pattern0+
+    : k=CTOR args+=pattern0+                # PatDecons
+    |<assoc=right> l=pattern '|' r=pattern  # PatOr
+    | pattern0                              # PatPattern0
     ;
 
 pattern0

@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.util.*;
 import lang.qkm.expr.*;
 import lang.qkm.match.*;
+import lang.qkm.util.SList;
 
 public final class ANFConverter implements ExprRewriter, Match.Visitor<Match> {
 
@@ -196,10 +197,15 @@ public final class ANFConverter implements ExprRewriter, Match.Visitor<Match> {
         final Map<String, String> old = this.mapping;
         final Deque<BindingInfo> outer = this.seq;
         for (final Map.Entry<Match, Expr> k : e.cases) {
-            this.mapping = new HashMap<>(old);
-            this.seq = new ArrayDeque<>();
+            final Map<String, String> captures = new HashMap<>();
+            this.mapping = captures;
             final Match m = k.getKey().accept(this);
+
+            this.mapping = new HashMap<>(old);
+            this.mapping.putAll(captures);
+            this.seq = new ArrayDeque<>();
             final Expr body = this.rewrite(k.getValue());
+
             cases.add(Map.entry(m, body));
         }
 
@@ -288,8 +294,8 @@ public final class ANFConverter implements ExprRewriter, Match.Visitor<Match> {
         if (m.capture == null)
             return m;
 
-        final String repl = this.newName();
-        this.mapping.put(m.capture, repl);
+        // or patterns need captures on both sides to keep the same name...
+        final String repl = this.mapping.computeIfAbsent(m.capture, k -> this.newName());
         return new MatchAll(repl);
     }
 
@@ -344,5 +350,14 @@ public final class ANFConverter implements ExprRewriter, Match.Visitor<Match> {
             return m;
 
         return new MatchTup(elements);
+    }
+
+    @Override
+    public Match visitMatchOr(MatchOr m) {
+        final SList.Builder<Match> result = new SList.Builder<>();
+        for (SList<Match> k = m.submatches; k.nonEmpty(); k = k.tail())
+            result.addLast(k.head().accept(this));
+
+        return new MatchOr(result.build());
     }
 }

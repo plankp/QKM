@@ -11,9 +11,10 @@ import static lang.qkm.QKMParser.*;
 
 public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
 
-    private final Map<String, TyVar> bindings = new HashMap<>();
     private final TypeState state;
     private final KindChecker kindChecker;
+
+    private Map<String, TyVar> bindings = new HashMap<>();
 
     public PatternChecker(TypeState state, KindChecker kindChecker) {
         this.state = state;
@@ -47,6 +48,39 @@ public final class PatternChecker extends QKMBaseVisitor<Typed<Match>> {
             return new Typed<>(new MatchCtor(ctor, args), acc);
 
         throw new RuntimeException("Illegal incomplete constructor application");
+    }
+
+    @Override
+    public Typed<Match> visitPatOr(PatOrContext ctx) {
+        // each subpatterns must define the same bindings with the same type
+        final Map<String, TyVar> old = this.bindings;
+        this.bindings = new HashMap<>(old);
+        final Typed<Match> l = ctx.l.accept(this);
+        final Map<String, TyVar> ref = this.bindings;
+
+        this.bindings = old;
+        final Typed<Match> r = ctx.r.accept(this);
+
+        if (!ref.keySet().equals(this.bindings.keySet()))
+            throw new RuntimeException("Bindings must occur on both sides");
+        for (final Map.Entry<String, TyVar> pair : ref.entrySet())
+            this.bindings.get(pair.getKey()).unify(pair.getValue());
+        l.type.unify(r.type);
+
+        // flatten (p1 | (p2 | (p3 | ...))) into (p1 | p2 | p3 | ...)
+        SList<Match> nodes;
+        if (r.value instanceof MatchOr)
+            nodes = ((MatchOr) r.value).submatches;
+        else
+            nodes = SList.of(r.value);
+
+        // flatten (((p1 | p2) | p3) | ...) into (p1 | p2 | p3 | ...)
+        if (l.value instanceof MatchOr)
+            nodes = nodes.prependAll(((MatchOr) l.value).submatches.iterator());
+        else
+            nodes = nodes.prepend(l.value);
+
+        return new Typed<>(new MatchOr(nodes), l.type);
     }
 
     @Override

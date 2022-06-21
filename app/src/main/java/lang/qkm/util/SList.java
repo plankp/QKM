@@ -3,7 +3,34 @@ package lang.qkm.util;
 import java.util.*;
 import java.util.stream.*;
 
-public abstract class SList<E> {
+public abstract class SList<E> implements Iterable<E> {
+
+    public static final class Builder<E> {
+
+        private Cons<E> head;
+        private Cons<E> last;
+
+        public void addLast(E data) {
+            final Cons<E> node = new Cons<>(data);
+            if (this.head == null)
+                this.head = node;
+            else
+                this.last.next = node;
+            this.last = node;
+        }
+
+        public SList<E> build() {
+            if (this.head == null)
+                return new Nil<>();
+
+            final Cons<E> head = this.head;
+            final Cons<E> last = this.last;
+            this.head = null;
+            this.last = null;
+            last.next = new Nil<>();
+            return head;
+        }
+    }
 
     public static final class Cons<E> extends SList<E> {
 
@@ -42,6 +69,29 @@ public abstract class SList<E> {
         public String toString() {
             return "Cons(" + this.data + ")";
         }
+
+        @Override
+        public Iterator<E> iterator() {
+            return new Iterator<>() {
+
+                private SList<E> node = Cons.this;
+
+                @Override
+                public boolean hasNext() {
+                    return this.node.nonEmpty();
+                }
+
+                @Override
+                public E next() {
+                    if (this.node.isEmpty())
+                        throw new NoSuchElementException();
+
+                    final E data = node.head();
+                    node = node.tail();
+                    return data;
+                }
+            };
+        }
     }
 
     public static final class Nil<E> extends SList<E> {
@@ -64,6 +114,11 @@ public abstract class SList<E> {
         @Override
         public String toString() {
             return "Nil";
+        }
+
+        @Override
+        public Iterator<E> iterator() {
+            return Collections.emptyIterator();
         }
     }
 

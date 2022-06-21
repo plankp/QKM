@@ -72,6 +72,20 @@ public final class MatchChecker {
                     if (!covers(subPs, subQs))
                         return false;
                 }
+            } else if (q.value instanceof MatchOr) {
+                final Iterator<Match> it = ((MatchOr) q.value).submatches.iterator();
+                for (;;) {
+                    final Typed<Match> head = new Typed<>(it.next(), q.type);
+                    final SList<Typed<Match>> seq = qs.tail().prepend(head);
+                    if (!it.hasNext()) {
+                        // setup variables for tailcall
+                        qs = seq;
+                        break;
+                    }
+
+                    if (!covers(ps, seq))
+                        return false;
+                }
             } else {
                 ps = specialized(ps, q.value.getCtor(), q.value.getArgs());
                 qs = qs.tail().prependAll(new Zipper<>(
@@ -171,36 +185,59 @@ public final class MatchChecker {
     }
 
     public static Set<? extends Object> firstCtors(List<SList<Match>> cases) {
-        return cases.stream()
-                .map(SList::head)
-                .map(Match::getCtor)
-                .filter(k -> k != null)
-                .collect(Collectors.toSet());
+        final Set<Object> ctors = new HashSet<>();
+        for (final SList<Match> k : cases)
+            firstCtors(SList.of(k.head()), ctors);
+
+        return ctors;
+    }
+
+    private static void firstCtors(SList<Match> column, Set<Object> ctors) {
+        for (final Match m : column) {
+            if (m instanceof MatchAll)
+                continue;
+            if (m instanceof MatchOr)
+                firstCtors(((MatchOr) m).submatches, ctors);
+            else
+                ctors.add(m.getCtor());
+        }
     }
 
     public static List<SList<Match>> specialized(List<SList<Match>> cases, Object ctor, List<? extends Match> args) {
         final List<SList<Match>> result = new ArrayList<>(cases.size());
-        for (final SList<Match> row : cases) {
-            final Match m = row.head();
-            final SList<Match> ms = row.tail();
-            if (m instanceof MatchAll)
-                result.add(ms.prependAll(args));
-            else if (m.getCtor().equals(ctor))
-                result.add(ms.prependAll(m.getArgs()));
-        }
+        for (final SList<Match> row : cases)
+            specialized(SList.of(row.head()), row.tail(), ctor, args, result);
 
         return result;
     }
 
+    private static void specialized(SList<Match> column, SList<Match> ms, Object ctor, List<? extends Match> args, List<SList<Match>> result) {
+        for (final Match m : column) {
+            if (m instanceof MatchAll)
+                result.add(ms.prependAll(args));
+            else if (m instanceof MatchOr)
+                specialized(((MatchOr) m).submatches, ms, ctor, args, result);
+            else if (m.getCtor().equals(ctor))
+                result.add(ms.prependAll(m.getArgs()));
+        }
+    }
+
     public static List<SList<Match>> defaulted(List<SList<Match>> cases) {
         final List<SList<Match>> result = new ArrayList<>(cases.size());
-        for (final SList<Match> row : cases) {
-            final Match m = row.head();
-            final SList<Match> ms = row.tail();
-            if (m instanceof MatchAll)
-                result.add(ms);
-        }
+        for (final SList<Match> row : cases)
+            if (hasWildcard(SList.of(row.head())))
+                result.add(row.tail());
 
         return result;
+    }
+
+    public static boolean hasWildcard(SList<Match> column) {
+        for (final Match m : column) {
+            if (m instanceof MatchAll)
+                return true;
+            if (m instanceof MatchOr && hasWildcard(((MatchOr) m).submatches))
+                return true;
+        }
+        return false;
     }
 }

@@ -17,6 +17,7 @@ public interface Match {
         public R visitMatchInt(MatchInt m);
         public R visitMatchString(MatchString m);
         public R visitMatchTup(MatchTup m);
+        public R visitMatchOr(MatchOr m);
     }
 
     public <R> R accept(Visitor<R> v);
