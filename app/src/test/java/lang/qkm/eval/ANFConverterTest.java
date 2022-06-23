@@ -28,20 +28,15 @@ public class ANFConverterTest {
                 new EVar("c"), bindB,
                 new ETup(List.of(new ETup(List.of(new EVar("c"), unit)), new EString("3"))));
 
-        new ANFConverter(new Evaluator() {
-            @Override public void define(Map<EVar, Expr> defs) {}
-            @Override public void eval(Expr e) {
-                final String expected =
-                        "(let ((`v1 7)) " +
-                        "(let ((`v2 (`v1, ()))) " +
-                        "(let ((`v3 (`v2, 1))) " +
-                        "(let ((`v4 (`v3, ()))) " +
-                        "(let ((`v5 (`v4, 2))) " +
-                        "(let ((`v6 (`v5, ()))) " +
-                        "(`v6, 3)))))))";
-                assertEquals(expected, e.toString());
-            }
-        }).eval(bindC);
+        final String expected =
+                "(let ((`v1 7)) " +
+                "(let ((`v2 (`v1, ()))) " +
+                "(let ((`v3 (`v2, 1))) " +
+                "(let ((`v4 (`v3, ()))) " +
+                "(let ((`v5 (`v4, 2))) " +
+                "(let ((`v6 (`v5, ()))) " +
+                "(`v6, 3)))))))";
+        assertEquals(expected, new ANFConverter().rewrite(bindC).toString());
     }
 
     @Test
@@ -63,18 +58,13 @@ public class ANFConverterTest {
                 List.of(Map.entry(new MatchAll(), new EString("1"))));
         final ETup pack = new ETup(List.of(matchDiscard, new EString("9")));
 
-        new ANFConverter(new Evaluator() {
-            @Override public void define(Map<EVar, Expr> defs) {}
-            @Override public void eval(Expr e) {
-                final String expected =
-                        "(let ((`v6 (\\`v3. " +
-                        "(let ((`v5 (\\`v4. (`v4, 9)))) " +
-                        "(match `v3 (_ (`v5 1))))))) " +
-                        "(match true " +
-                        "(true (let ((`v1 (true, false))) (match `v1 ((_, `v2) (`v6 `v2))))) " +
-                        "(false (`v6 true))))";
-                assertEquals(expected, e.toString());
-            }
-        }).eval(pack);
+        final String expected =
+                "(let ((`v6 (\\`v3. " +
+                "(let ((`v5 (\\`v4. (`v4, 9)))) " +
+                "(match `v3 (_ (`v5 1))))))) " +
+                "(match true " +
+                "(true (let ((`v1 (true, false))) (match `v1 ((_, `v2) (`v6 `v2))))) " +
+                "(false (`v6 true))))";
+        assertEquals(expected, new ANFConverter().rewrite(pack).toString());
     }
 }
